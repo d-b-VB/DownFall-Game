@@ -1,0 +1,115 @@
+{
+  "meta": {
+    "title": "DownFall",
+    "version": "0.1.0",
+    "theme": "top-down action combat",
+    "visual_style": "emoji sprites"
+  },
+  "coreLoop": {
+    "waveDurationSeconds": 60,
+    "enemyPowerMultiplierPerWave": 1.5,
+    "playerUpgradeChoicesPerWave": 1,
+    "targetPlayerUpgradeGainRange": [0.15, 0.2],
+    "retireAllowed": "wave_end_only"
+  },
+  "world": {
+    "layout": "radial_clockface",
+    "persistentSimulation": true,
+    "screenViewFractionOfZone": 0.111,
+    "rings": [
+      {
+        "radius": [0, 1],
+        "zones": ["orchard"]
+      },
+      {
+        "radius": [1, 2],
+        "zones": ["grove", "creekside"]
+      },
+      {
+        "radius": [2, 3],
+        "zones": ["pasture", "smith_town", "fletcher_village"]
+      },
+      {
+        "radius": [3, 4],
+        "zones": [
+          "tundra",
+          "sawmill_woods",
+          "marsh",
+          "marches",
+          "desert",
+          "volcano",
+          "mine",
+          "frosty_mountain"
+        ]
+      },
+      {
+        "radius": [4, 5],
+        "zones": ["swamp", "foundry_monastery"]
+      }
+    ]
+  },
+  "weapons": {
+    "club": { "range": "short", "impact": "high", "pierce": "low", "element": "fire" },
+    "sling": { "range": "long", "impact": "medium", "pierce": "low" },
+    "axe": { "range": "short", "impact": "medium", "pierce": "medium", "element": "ice" },
+    "bow": { "range": "long", "impact": "none", "pierce": "high" },
+    "sword": { "range": "short", "impact": "none", "pierce": "high", "element": "poison" },
+    "ballista": { "range": "long", "impact": "medium", "pierce": "very_high" },
+    "cannon": { "range": "long", "impact": "very_high", "pierce": "very_high" }
+  },
+  "elements": {
+    "fire": "high_dot_decay",
+    "ice": "slow",
+    "poison": "ramping_dot"
+  },
+  "enemyCategories": [
+    "bugs",
+    "aquatic",
+    "game_animals",
+    "birds",
+    "humans",
+    "poison_creatures",
+    "fire_creatures",
+    "ice_creatures",
+    "undead"
+  ],
+  "zones": {
+    "orchard": { "unlock": "club", "shop": ["fruit"], "vendor": "farm_lady" },
+    "creekside": { "unlock": "sling", "shop": ["clay_jars"], "vendor": "child" },
+    "grove": { "unlock": "axe", "shop": ["cooked_meat"], "vendor": "grandpa_hunter" },
+    "fletcher_village": { "unlock": "bow", "shop": ["arrows"], "vendor": "feather" },
+    "smith_town": { "unlock": "sword_shield", "shop": ["lead_pellets"], "vendor": "anvil_hammer" },
+    "pasture": {
+      "unlock": "horse",
+      "shop": ["cheese", "couriers"],
+      "vendor": "cowboy",
+      "special": ["courier_system_unlock"]
+    },
+    "sawmill_woods": { "unlock": "ballista", "shop": ["ballista_bolts"], "vendor": "saw" },
+    "marches": { "unlock": "army", "shop": ["grenades"], "vendor": "queen" },
+    "volcano": { "unlock": "fire_mods", "shop": ["fire_charges"], "vendor": "wizard" },
+    "frosty_mountain": { "unlock": "ice_mods", "shop": ["ice_charges"], "vendor": "neutral_mage" },
+    "swamp": {
+      "unlock": "poison_mods",
+      "shop": ["poison_charges", "antitoxin", "revival_potion"],
+      "vendor": "female_magic_user"
+    },
+    "foundry_monastery": {
+      "unlock": "cannon",
+      "shop": ["cannonballs", "bombs", "antitoxin", "revival_potion"],
+      "vendor": "bishop"
+    },
+    "tundra": { "cashOnly": true },
+    "desert": { "cashOnly": true },
+    "mine": { "cashOnly": true },
+    "marsh": { "cashOnly": true }
+  },
+  "runRules": {
+    "deathEndsRun": true,
+    "restartWeapon": "club",
+    "upgradesPersist": true,
+    "zoneDifficultyResetsOnRestart": true,
+    "retireesHireable": true,
+    "midWaveZoneExitPausesZone": true
+  }
+}
