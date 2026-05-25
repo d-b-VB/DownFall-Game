@@ -51,6 +51,24 @@ function getZone(x, y) {
   return zones.find((z) => r >= z.ring.min && r < z.ring.max && inArc(hour, z.arc));
 }
 
+
+function fisheyeMap01(u) {
+  if (u <= 0.9) return u;
+  const t = Math.min(1, (u - 0.9) / 0.1);
+  const k = 4;
+  return 0.9 + 0.1 * ((1 - Math.exp(-k * t)) / (1 - Math.exp(-k)));
+}
+
+function projectWorld(wx, wy) {
+  const dx = wx - state.camera.x, dy = wy - state.camera.y;
+  const r = Math.hypot(dx, dy);
+  const maxR = Math.min(innerWidth, innerHeight) * 0.5;
+  const u = Math.min(1, r / maxR);
+  const v = fisheyeMap01(u);
+  const rr = v * maxR;
+  const scale = r > 1e-6 ? rr / r : 1;
+  return { x: innerWidth * 0.5 + dx * scale, y: innerHeight * 0.5 + dy * scale, scale, u };
+}
 function resetWorld() {
   const start = worldXY(25, 20);
   state.player = { x: start.x, y: start.y, vx: 0, vy: 0, hp: 20, weapon: 'club', unlocked: new Set(['club']), swing: 0, lastX: start.x, lastY: start.y };
@@ -144,17 +162,29 @@ function drawHexBackground() {
   const size = 24;
   const hStep = Math.sqrt(3) * size;
   const vStep = 1.5 * size;
-  for (let row = -2; row < innerHeight / vStep + 3; row++) {
-    for (let col = -2; col < innerWidth / hStep + 3; col++) {
-      const sx = col * hStep + (row % 2 ? hStep / 2 : 0);
-      const sy = row * vStep;
-      const wx = sx + state.camera.x - innerWidth / 2;
-      const wy = sy + state.camera.y - innerHeight / 2;
+  const worldW = innerWidth * 1.3;
+  const worldH = innerHeight * 1.3;
+  const startX = state.camera.x - worldW * 0.5;
+  const startY = state.camera.y - worldH * 0.5;
+  const endX = state.camera.x + worldW * 0.5;
+  const endY = state.camera.y + worldH * 0.5;
+
+  const rowStart = Math.floor(startY / vStep) - 2;
+  const rowEnd = Math.ceil(endY / vStep) + 2;
+  const colStart = Math.floor(startX / hStep) - 2;
+  const colEnd = Math.ceil(endX / hStep) + 2;
+
+  for (let row = rowStart; row <= rowEnd; row++) {
+    for (let col = colStart; col <= colEnd; col++) {
+      const wx = col * hStep + (row % 2 ? hStep / 2 : 0);
+      const wy = row * vStep;
+      const p = projectWorld(wx, wy);
+      if (p.x < -40 || p.x > innerWidth + 40 || p.y < -40 || p.y > innerHeight + 40) continue;
       const z = getZone(wx, wy);
       const palette = z?.palette || ['#3a5847', '#4d6a56', '#638169'];
       const idx = Math.abs((row + col * 2)) % 3;
       ctx.fillStyle = palette[idx];
-      hex(sx, sy, size); ctx.fill();
+      hex(p.x, p.y, Math.max(3, size * p.scale)); ctx.fill();
     }
   }
 }
@@ -166,32 +196,36 @@ function drawRiver() {
   const segments = [];
   for (let h = 11; h <= 14.5; h += 0.18) {
     const th = (6 - h) * Math.PI / 6;
-    const r = 3 * 5 * CELL + Math.sin(h * 3) * 12;
-    segments.push({ x: MAP_CENTER.x + Math.cos(th) * r, y: MAP_CENTER.y + Math.sin(th) * r });
+    const r = 3 * 5 * CELL * WORLD_SCALE + Math.sin(h * 3) * 12;
+    segments.push(projectWorld(MAP_CENTER.x + Math.cos(th) * r, MAP_CENTER.y + Math.sin(th) * r));
   }
   ctx.strokeStyle = '#5ec6ffcc'; ctx.lineWidth = 22; ctx.lineCap = 'round'; ctx.beginPath();
   segments.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.stroke();
-  ctx.strokeStyle = '#b48a55'; ctx.lineWidth = 8;
-  [11.8, 12.6, 13.6].forEach((h) => {
-    const th = (6 - h) * Math.PI / 6, x = MAP_CENTER.x + Math.cos(th) * 3 * 5 * CELL, y = MAP_CENTER.y + Math.sin(th) * 3 * 5 * CELL;
-    const tx = -Math.sin(th), ty = Math.cos(th);
-    ctx.beginPath(); ctx.moveTo(x - tx * 24, y - ty * 24); ctx.lineTo(x + tx * 24, y + ty * 24); ctx.stroke();
-  });
 }
 
 function render() {
   ctx.clearRect(0, 0, innerWidth, innerHeight); drawHexBackground();
-  ctx.save(); ctx.translate(innerWidth / 2 - state.camera.x, innerHeight / 2 - state.camera.y);
   drawRiver();
-  for (const z of zones) { const midH = wrap24((z.arc[0] + z.arc[1]) * 0.5); const th = (6 - midH) * Math.PI / 6; const r = (z.ring.min + z.ring.max) * 0.5; ctx.fillStyle = '#fff8'; ctx.font = '18px sans-serif'; ctx.fillText(`${z.waypoint} ${z.name}`, MAP_CENTER.x + Math.cos(th) * r - 40, MAP_CENTER.y + Math.sin(th) * r); }
-  for (const t of state.terrain) { ctx.font = '30px serif'; ctx.fillText(t.glyph, t.x - 12, t.y + 10); }
-  for (const e of state.enemies) { ctx.font = '26px serif'; ctx.fillText(e.glyph, e.x - 10, e.y + 8); }
-  for (const pr of state.projectiles) { ctx.font = '20px serif'; ctx.fillText(pr.glyph, pr.x - 8, pr.y + 8); }
 
-  const p = state.player, aim = Math.atan2(state.mouse.y - innerHeight / 2, state.mouse.x - innerWidth / 2);
+  for (const z of zones) {
+    const midH = wrap24((z.arc[0] + z.arc[1]) * 0.5);
+    const th = (6 - midH) * Math.PI / 6;
+    const r = (z.ring.min + z.ring.max) * 0.5;
+    const p = projectWorld(MAP_CENTER.x + Math.cos(th) * r, MAP_CENTER.y + Math.sin(th) * r);
+    ctx.fillStyle = '#fff8'; ctx.font = `${Math.max(10,18*p.scale)}px sans-serif`; 
+    ctx.fillText(`${z.waypoint} ${z.name}`, p.x - 40 * p.scale, p.y);
+  }
+  for (const t of state.terrain) { const p=projectWorld(t.x,t.y); ctx.font = `${Math.max(12,30*p.scale)}px serif`; ctx.fillText(t.glyph, p.x-12*p.scale, p.y+10*p.scale); }
+  for (const e of state.enemies) { const p=projectWorld(e.x,e.y); ctx.font = `${Math.max(11,26*p.scale)}px serif`; ctx.fillText(e.glyph, p.x-10*p.scale, p.y+8*p.scale); }
+  for (const pr of state.projectiles) { const p=projectWorld(pr.x,pr.y); ctx.font = `${Math.max(10,20*p.scale)}px serif`; ctx.fillText(pr.glyph, p.x-8*p.scale, p.y+8*p.scale); }
+
+  const p = projectWorld(state.player.x,state.player.y), aim = Math.atan2(state.mouse.y - innerHeight / 2, state.mouse.x - innerWidth / 2);
   ctx.font = '34px serif'; ctx.fillText('🙂', p.x - 14, p.y + 12);
-  ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(aim);
+  ctx.save(); ctx.translate(p.x, p.y);
   const w = weaponDef();
+  const swingT = Math.max(0, state.player.swing);
+  const swingAngle = w.kind === 'swing' ? Math.sin((1 - swingT) * Math.PI * 2.2) * 0.8 * swingT : 0;
+  ctx.rotate(aim + swingAngle);
   if (w.id === 'club') {
     ctx.strokeStyle = '#6f3f1f'; ctx.lineWidth = 11; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(20, 0); ctx.lineTo(56, 0); ctx.stroke();
   } else if (w.kind === 'bow' && (state.mouse.down || state.spaceDown)) {
@@ -201,7 +235,6 @@ function render() {
     const t = Math.min(1, state.mouse.held / 1.4), wob = Math.sin(state.t * 50 * t) * 10 * t;
     ctx.font = '28px serif'; ctx.fillText('🪢', 24, 8); ctx.fillStyle = '#ddd'; ctx.beginPath(); ctx.arc(54 + 22 * t + wob, 0, 6 + 5 * t, 0, Math.PI * 2); ctx.fill();
   } else { ctx.font = '28px serif'; ctx.fillText(w.glyph, 26, 8); }
-  ctx.restore();
   ctx.restore();
 
   const z = getZone(state.player.x, state.player.y);
