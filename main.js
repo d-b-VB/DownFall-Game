@@ -34,6 +34,8 @@ const zones = [
   { id: 'frost', name: 'Frosty Mountain', palette:['#7e9fbe','#a4bfd8','#d8ecfb'], waypoint: '🏔️', enemy: '❄️', unlock: null, ring: ring(3, 4), arc: [21.5, 23.5] },
   { id: 'swamp', name: 'Swamp', palette:['#2f5a2f','#4f7b46','#7ea85f'], waypoint: '🐸', enemy: '☠️', unlock: null, ring: ring(4, 5), arc: [14, 16], slowWater: true },
   { id: 'foundry', name: 'Foundry/Monastery', palette:['#5e4339','#7a5a4f','#a37d6b'], waypoint: '🏯', enemy: '👹', unlock: null, ring: ring(4, 5), arc: [20, 22] },
+  { id: 'outer_north', name: 'Northern Reach', palette:['#3f5f7f','#567aa0','#7fa7ca'], waypoint: '🧭', enemy: '😠', unlock: null, ring: ring(4,5), arc:[22,14] },
+  { id: 'outer_mid', name: 'Frontier Belt', palette:['#6d5b43','#8f7758','#b89a74'], waypoint: '🗺️', enemy: '😠', unlock: null, ring: ring(4,5), arc:[16,20] },
 ];
 
 const state = { t: 0, last: 0, mouseDX: 0, mouseDY: 0, keys: new Set(), mouse: { x: 0, y: 0, down: false, held: 0 }, camera: { x: MAP_CENTER.x, y: MAP_CENTER.y }, player: null, projectiles: [], enemies: [], terrain: [], waves: {} };
@@ -48,7 +50,7 @@ function getZone(x, y) {
   const r = Math.hypot(dx, dy);
   const theta = Math.atan2(dy, dx);
   const hour = toClockHour(theta);
-  return zones.find((z) => r >= z.ring.min && r < z.ring.max && inArc(hour, z.arc));
+  return zones.find((z) => r >= z.ring.min && r < z.ring.max && inArc(hour, z.arc)) || zones.find((z)=>z.id==='outer_north') || zones[0];
 }
 
 
@@ -62,7 +64,7 @@ function fisheyeMap01(u) {
 function projectWorld(wx, wy) {
   const dx = wx - state.camera.x, dy = wy - state.camera.y;
   const r = Math.hypot(dx, dy);
-  const maxR = Math.min(innerWidth, innerHeight) * 0.5;
+  const maxR = Math.min(innerWidth, innerHeight) * 0.62;
   const u = Math.min(1, r / maxR);
   const v = fisheyeMap01(u);
   const rr = v * maxR;
@@ -112,13 +114,17 @@ function update(dt) {
   const mag = Math.hypot(dx, dy) || 1; dx /= mag; dy /= mag;
   const zone = getZone(p.x, p.y);
   const slow = zone?.slowWater ? 0.65 : 1;
-  p.vx = dx * 220 * slow; p.vy = dy * 220 * slow; p.x += p.vx * dt; p.y += p.vy * dt;
+  const targetVx = dx * 220 * slow, targetVy = dy * 220 * slow;
+  const accel = 7.5;
+  p.vx += (targetVx - p.vx) * Math.min(1, accel * dt);
+  p.vy += (targetVy - p.vy) * Math.min(1, accel * dt);
+  p.x += p.vx * dt; p.y += p.vy * dt;
   state.camera.x += (p.x - state.camera.x) * 0.1; state.camera.y += (p.y - state.camera.y) * 0.1;
   if (state.mouse.down || state.spaceDown) state.mouse.held += dt;
 
   if (zone && !state.waves[zone.id].spawned) {
     state.waves[zone.id].spawned = true;
-    for (let i = 0; i < 4; i++) state.enemies.push({ x: p.x + Math.cos(i) * 140, y: p.y + Math.sin(i * 2) * 120, hp: 8, glyph: zone.enemy, zone: zone.id });
+    for (let i = 0; i < 4; i++) state.enemies.push({ x: p.x + Math.cos(i) * 140, y: p.y + Math.sin(i * 2) * 120, hp: 8, glyph: (zone.enemy || '😠'), zone: zone.id });
   }
 
   if (p.swing > 0) { p.swing -= dt * 3; doSwingDamage(); }
@@ -182,7 +188,7 @@ function drawHexBackground() {
       if (p.x < -40 || p.x > innerWidth + 40 || p.y < -40 || p.y > innerHeight + 40) continue;
       const z = getZone(wx, wy);
       const palette = z?.palette || ['#3a5847', '#4d6a56', '#638169'];
-      const idx = Math.abs((row + col * 2)) % 3;
+      const idx = ((col - row) % 3 + 3) % 3;
       ctx.fillStyle = palette[idx];
       hex(p.x, p.y, Math.max(3, size * p.scale)); ctx.fill();
     }
@@ -234,11 +240,11 @@ function render() {
   } else if (w.kind === 'sling' && (state.mouse.down || state.spaceDown)) {
     const t = Math.min(1, state.mouse.held / 1.4), wob = Math.sin(state.t * 50 * t) * 10 * t;
     ctx.font = '28px serif'; ctx.fillText('🪢', 24, 8); ctx.fillStyle = '#ddd'; ctx.beginPath(); ctx.arc(54 + 22 * t + wob, 0, 6 + 5 * t, 0, Math.PI * 2); ctx.fill();
-  } else { ctx.font = '28px serif'; ctx.fillText(w.glyph, 26, 8); }
+  } else if (w.id === 'axe') { ctx.save(); ctx.translate(18,0); ctx.rotate(Math.PI); ctx.font='28px serif'; ctx.fillText('🪓',0,8); ctx.restore(); } else { ctx.font = '28px serif'; ctx.fillText(w.glyph, 26, 8); }
   ctx.restore();
 
   const z = getZone(state.player.x, state.player.y);
-  ui.innerHTML = `HP ${state.player.hp.toFixed(1)}<br>Zone: ${z?.name || 'Wilderness'}<br>Weapon: ${weaponDef().id}<br>Unlocked: ${[...state.player.unlocked].join(', ')}<br><button onclick="resetWorld()">Reset World</button>`;
+  ui.innerHTML = `HP ${state.player.hp.toFixed(1)}<br>Zone: ${z?.name || 'Club Orchard'}<br>Weapon: ${weaponDef().id}<br>Unlocked: ${[...state.player.unlocked].join(', ')}<br><button onclick="resetWorld()">Reset World</button>`;
 }
 
 function loop(ts) { if (!state.last) state.last = ts; const dt = Math.min(0.033, (ts - state.last) / 1000); state.last = ts; const p = state.player; p.lastX = p.x; p.lastY = p.y; update(dt); render(); requestAnimationFrame(loop); }
