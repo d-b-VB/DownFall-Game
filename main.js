@@ -2,10 +2,10 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const ui = document.getElementById('ui');
 
-const CELL = 48; // 1 radius unit = 5 chars visualized as 48px
-const MAP_CENTER = { x: 25 * CELL, y: 20 * CELL };
-const INNER_RADIUS = 5 * CELL;
-const ring = (a, b) => ({ min: a * 5 * CELL, max: b * 5 * CELL });
+const CELL = 48; // visual pixels per character-cell
+const WORLD_SCALE = 4; // 4x bigger in each direction
+const MAP_CENTER = { x: 25 * CELL * WORLD_SCALE, y: 20 * CELL * WORLD_SCALE };
+const ring = (a, b) => ({ min: a * 5 * CELL * WORLD_SCALE, max: b * 5 * CELL * WORLD_SCALE });
 
 const weapons = [
   { id: 'club', glyph: 'club', kind: 'swing', base: 8, reach: 62, speedScale: 24 },
@@ -18,27 +18,27 @@ const weapons = [
 ];
 
 const zones = [
-  { id: 'orchard', name: 'Club Orchard', bg: '#567d48', waypoint: '🌳', enemy: '🐗', unlock: 'club', ring: ring(0, 1), arc: [0, 24] },
-  { id: 'axe', name: 'Axe Grove', bg: '#4b724f', waypoint: '🪓', enemy: '🦂', unlock: 'axe', ring: ring(1, 2), arc: [9, 15] },
-  { id: 'creek', name: 'Sling Creekside', bg: '#3f7182', waypoint: '🌊', enemy: '🪨', unlock: 'sling', ring: ring(1, 2), arc: [15, 24], slowWater: true },
-  { id: 'pasture', name: 'Pasture', bg: '#88a86b', waypoint: '🐄', enemy: '🐺', unlock: 'sword', ring: ring(2, 3), arc: [3, 7] },
-  { id: 'smith', name: 'Smith Town', bg: '#7f6a4f', waypoint: '🏘️', enemy: '🛡️', unlock: 'bow', ring: ring(2, 3), arc: [7, 11] },
-  { id: 'fletcher', name: 'Fletcher Village', bg: '#70845a', waypoint: '🎯', enemy: '🦅', unlock: 'ballista', ring: ring(2, 3), arc: [11, 15] },
-  { id: 'tundra', name: 'Tundra', bg: '#c8d8e6', waypoint: '🧊', enemy: '❄️', unlock: null, ring: ring(3, 4), arc: [11.5, 12.5] },
-  { id: 'sawmill', name: 'Sawmill Woods', bg: '#50674a', waypoint: '🪚', enemy: '🧌', unlock: 'cannon', ring: ring(3, 4), arc: [12.5, 14.5] },
-  { id: 'marsh', name: 'Marsh', bg: '#57714f', waypoint: '🦆', enemy: '🐍', unlock: null, ring: ring(3, 4), arc: [14.5, 15.5], slowWater: true },
-  { id: 'marches', name: 'Marches', bg: '#747a7f', waypoint: '🏰', enemy: '🛡️', unlock: null, ring: ring(3, 4), arc: [15.5, 17.5] },
-  { id: 'desert', name: 'Desert', bg: '#b7945a', waypoint: '🌵', enemy: '🦂', unlock: null, ring: ring(3, 4), arc: [17.5, 18.5] },
-  { id: 'volcano', name: 'Volcano', bg: '#8a3b2f', waypoint: '🌋', enemy: '🐜', unlock: null, ring: ring(3, 4), arc: [18.5, 20.5] },
-  { id: 'mine', name: 'Mine', bg: '#6e6870', waypoint: '⛏️', enemy: '🪨', unlock: null, ring: ring(3, 4), arc: [20.5, 21.5] },
-  { id: 'frost', name: 'Frosty Mountain', bg: '#a4bfd8', waypoint: '🏔️', enemy: '❄️', unlock: null, ring: ring(3, 4), arc: [21.5, 23.5] },
-  { id: 'swamp', name: 'Swamp', bg: '#4f6b3f', waypoint: '🐸', enemy: '☠️', unlock: null, ring: ring(4, 5), arc: [14, 16], slowWater: true },
-  { id: 'foundry', name: 'Foundry/Monastery', bg: '#7a5a4f', waypoint: '🏯', enemy: '👹', unlock: null, ring: ring(4, 5), arc: [20, 22] },
+  { id: 'orchard', name: 'Club Orchard', palette:['#1f6a3a','#2f8e4d','#4f5f3e'], waypoint: '🌳', enemy: '🐗', unlock: 'club', ring: ring(0, 1), arc: [0, 24] },
+  { id: 'axe', name: 'Axe Grove', palette:['#3e6b2a','#6f8f33','#8cad4a'], waypoint: '🪓', enemy: '🦂', unlock: 'axe', ring: ring(1, 2), arc: [9, 15] },
+  { id: 'creek', name: 'Sling Creekside', palette:['#2a5f79','#3e89a8','#78b8d4'], waypoint: '🌊', enemy: '🪨', unlock: 'sling', ring: ring(1, 2), arc: [15, 24], slowWater: true },
+  { id: 'pasture', name: 'Pasture', palette:['#6d8f4b','#92b862','#c0d98a'], waypoint: '🐄', enemy: '🐺', unlock: 'sword', ring: ring(2, 3), arc: [3, 7] },
+  { id: 'smith', name: 'Smith Town', palette:['#6d5743','#8f7057','#c19a72'], waypoint: '🏘️', enemy: '🛡️', unlock: 'bow', ring: ring(2, 3), arc: [7, 11] },
+  { id: 'fletcher', name: 'Fletcher Village', palette:['#5a7a3f','#7da85b','#b8d685'], waypoint: '🎯', enemy: '🦅', unlock: 'ballista', ring: ring(2, 3), arc: [11, 15] },
+  { id: 'tundra', name: 'Tundra', palette:['#8faecc','#c8d8e6','#f5fbff'], waypoint: '🧊', enemy: '❄️', unlock: null, ring: ring(3, 4), arc: [11.5, 12.5] },
+  { id: 'sawmill', name: 'Sawmill Woods', palette:['#355c37','#4f7f4a','#7ba36f'], waypoint: '🪚', enemy: '🧌', unlock: 'cannon', ring: ring(3, 4), arc: [12.5, 14.5] },
+  { id: 'marsh', name: 'Marsh', palette:['#456243','#5e7f59','#89a37d'], waypoint: '🦆', enemy: '🐍', unlock: null, ring: ring(3, 4), arc: [14.5, 15.5], slowWater: true },
+  { id: 'marches', name: 'Marches', palette:['#5c6166','#7f868c','#a4adb4'], waypoint: '🏰', enemy: '🛡️', unlock: null, ring: ring(3, 4), arc: [15.5, 17.5] },
+  { id: 'desert', name: 'Desert', palette:['#9e7338','#c89a4f','#e6c877'], waypoint: '🌵', enemy: '🦂', unlock: null, ring: ring(3, 4), arc: [17.5, 18.5] },
+  { id: 'volcano', name: 'Volcano', palette:['#6e231f','#a73a2f','#df6a3f'], waypoint: '🌋', enemy: '🐜', unlock: null, ring: ring(3, 4), arc: [18.5, 20.5] },
+  { id: 'mine', name: 'Mine', palette:['#4f4a52','#726b77','#9a92a1'], waypoint: '⛏️', enemy: '🪨', unlock: null, ring: ring(3, 4), arc: [20.5, 21.5] },
+  { id: 'frost', name: 'Frosty Mountain', palette:['#7e9fbe','#a4bfd8','#d8ecfb'], waypoint: '🏔️', enemy: '❄️', unlock: null, ring: ring(3, 4), arc: [21.5, 23.5] },
+  { id: 'swamp', name: 'Swamp', palette:['#2f5a2f','#4f7b46','#7ea85f'], waypoint: '🐸', enemy: '☠️', unlock: null, ring: ring(4, 5), arc: [14, 16], slowWater: true },
+  { id: 'foundry', name: 'Foundry/Monastery', palette:['#5e4339','#7a5a4f','#a37d6b'], waypoint: '🏯', enemy: '👹', unlock: null, ring: ring(4, 5), arc: [20, 22] },
 ];
 
 const state = { t: 0, last: 0, mouseDX: 0, mouseDY: 0, keys: new Set(), mouse: { x: 0, y: 0, down: false, held: 0 }, camera: { x: MAP_CENTER.x, y: MAP_CENTER.y }, player: null, projectiles: [], enemies: [], terrain: [], waves: {} };
 
-const worldXY = (cx, cy) => ({ x: cx * CELL, y: cy * CELL });
+const worldXY = (cx, cy) => ({ x: cx * CELL * WORLD_SCALE, y: cy * CELL * WORLD_SCALE });
 const wrap24 = (h) => (h % 24 + 24) % 24;
 function inArc(hour, [start, end]) { const h = wrap24(hour); const s = wrap24(start); const e = wrap24(end); return s <= e ? h >= s && h < e : h >= s || h < e; }
 function toClockHour(theta) { return wrap24((6 - theta * 6 / Math.PI)); }
@@ -151,7 +151,9 @@ function drawHexBackground() {
       const wx = sx + state.camera.x - innerWidth / 2;
       const wy = sy + state.camera.y - innerHeight / 2;
       const z = getZone(wx, wy);
-      ctx.fillStyle = shade(z?.bg || '#465', ((row + col) % 7) * 0.02 - 0.06);
+      const palette = z?.palette || ['#3a5847', '#4d6a56', '#638169'];
+      const idx = Math.abs((row + col * 2)) % 3;
+      ctx.fillStyle = palette[idx];
       hex(sx, sy, size); ctx.fill();
     }
   }
