@@ -3,7 +3,7 @@ const ctx = canvas.getContext('2d');
 const ui = document.getElementById('ui');
 
 const CELL = 48;
-const WORLD_SCALE = 6;
+const WORLD_SCALE = 4;
 const MAP_CENTER = { x: 25 * CELL * WORLD_SCALE, y: 20 * CELL * WORLD_SCALE };
 const WORLD_MAX_R = 5 * 5 * CELL * WORLD_SCALE;
 const ring = (a, b) => ({ min: a * 5 * CELL * WORLD_SCALE, max: b * 5 * CELL * WORLD_SCALE });
@@ -41,14 +41,14 @@ const state = { t:0,last:0,keys:new Set(),mouse:{x:0,y:0,down:false,held:0},came
 const wrap12=h=>(h%12+12)%12; const inArc=(h,[s,e])=>{h=wrap12(h);s=wrap12(s);e=wrap12(e);return s<=e?(h>=s&&h<e):(h>=s||h<e)}; const toClockHour=t=>wrap12((t*6/Math.PI)+3);
 const weaponDef=()=>weapons.find(w=>w.id===state.player.weapon);
 function getZone(x,y){const dx=x-MAP_CENTER.x,dy=y-MAP_CENTER.y,r=Math.hypot(dx,dy),h=toClockHour(Math.atan2(dy,dx)); return zones.find(z=>r>=z.ring.min&&r<z.ring.max&&inArc(h,z.arc))||null;}
-function projectWorld(wx,wy){const dx=wx-state.camera.x,dy=wy-state.camera.y; return {x:innerWidth/2+dx*0.22,y:innerHeight/2+dy*0.22,scale:0.5};}
+function projectWorld(wx,wy){const dx=wx-state.camera.x,dy=wy-state.camera.y; return {x:innerWidth/2+dx*0.32,y:innerHeight/2+dy*0.32,scale:0.7};}
 
 function spawnZoneDecor(z){
-  const cfg={orchard:{n:35,g:['🌳','🌳','🌳','🌲']},axe_grove:{n:100,g:['🌲','🌲','🌲','🌲','🌲','🌳']},sawmill:{n:1000,g:['🌲','🌳','🌴','🌲']},smith:{n:90,g:['🧱']},fletcher:{n:25,g:['🧱','🌲']},foundry:{n:35,g:['🧱','🪨']},mine:{n:80,g:['🪨']},frost:{n:70,g:['🪨']},marches:{n:45,g:['♜']},desert:{n:55,g:['🌵']},creek:{n:18,g:['🌲']},swamp:{n:18,g:['🌲']},pasture:{n:8,g:['🌿']},marsh:{n:14,g:['🌿']},volcano:{n:16,g:['🪨']},snow:{n:10,g:['🪨']}}[z.deco]||{n:8,g:['🌿']};
+  const cfg={orchard:{n:70,g:['🌳','🌳','🌳','🌲']},axe_grove:{n:100,g:['🌲','🌲','🌲','🌲','🌲','🌳']},sawmill:{n:1000,g:['🌲','🌳','🌴','🌲']},smith:{n:90,g:['🧱']},fletcher:{n:25,g:['🧱','🌲']},foundry:{n:35,g:['🧱','🪨']},mine:{n:80,g:['🪨']},frost:{n:70,g:['🪨']},marches:{n:45,g:['♜']},desert:{n:55,g:['🌵']},creek:{n:18,g:['🌲']},swamp:{n:18,g:['🌲']},pasture:{n:8,g:['🌿']},marsh:{n:14,g:['🌿']},volcano:{n:16,g:['🪨']},snow:{n:10,g:['🪨']}}[z.deco]||{n:8,g:['🌿']};
   for(let i=0;i<cfg.n;i++){const h=Math.random()*12;if(!inArc(h,z.arc))continue;const rr=z.ring.min+(z.ring.max-z.ring.min)*(0.08+0.84*Math.random());const th=(h-3)*Math.PI/6; const glyph=cfg.g[(Math.random()*cfg.g.length)|0]; const type=(glyph==='🧱'||glyph==='🪨')?'wall':'tree'; state.terrain.push({x:MAP_CENTER.x+Math.cos(th)*rr,y:MAP_CENTER.y+Math.sin(th)*rr,hp:3,glyph,type,solid:true,stump:false,color:glyph==='♜'?'#000':null});}
 }
 
-function resetWorld(){const s={x:MAP_CENTER.x,y:MAP_CENTER.y};state.player={x:s.x,y:s.y,vx:0,vy:0,hp:20,weapon:'club',unlocked:new Set(['club']),swing:0,lastX:s.x,lastY:s.y}; state.mount='foot'; state.projectiles=[];state.enemies=[];state.terrain=[];state.waves={}; for(const z of zones){state.waves[z.id]={spawned:false,cleared:false};spawnZoneDecor(z);} }
+function resetWorld(){const s={x:MAP_CENTER.x,y:MAP_CENTER.y};state.player={x:s.x,y:s.y,vx:0,vy:0,hp:20,weapon:'club',unlocked:new Set(['club']),swing:0,lastX:s.x,lastY:s.y}; state.mount='foot'; state.projectiles=[];state.enemies=[];state.terrain=[];state.waves={}; for(const z of zones){state.waves[z.id]={spawned:false,cleared:false};spawnZoneDecor(z);} for(let i=0;i<28;i++){const a=(i/28)*Math.PI*2;const r=90+Math.random()*180;state.terrain.push({x:MAP_CENTER.x+Math.cos(a)*r,y:MAP_CENTER.y+Math.sin(a)*r,hp:3,glyph:(i%4? '🌳':'🌲'),type:'tree',solid:true,stump:false,color:null});} }
 
 function riverPushAt(x,y){const dx=x-MAP_CENTER.x,dy=y-MAP_CENTER.y,r=Math.hypot(dx,dy),h=toClockHour(Math.atan2(dy,dx));const on=Math.abs(r-(3*5*CELL*WORLD_SCALE))<70&&(inArc(h,[11,2.5])||inArc(h,[2.5,4])); if(!on)return{x:0,y:0,slow:1}; const th=(4.2-3)*Math.PI/6; return{x:Math.cos(th)*65,y:Math.sin(th)*65,slow:0.64};}
 
