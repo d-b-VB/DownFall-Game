@@ -3,165 +3,110 @@ const ctx = canvas.getContext('2d');
 const ui = document.getElementById('ui');
 
 const CELL = 48;
-const WORLD_SCALE = 4;
+const WORLD_SCALE = 6;
 const MAP_CENTER = { x: 25 * CELL * WORLD_SCALE, y: 20 * CELL * WORLD_SCALE };
 const WORLD_MAX_R = 5 * 5 * CELL * WORLD_SCALE;
 const ring = (a, b) => ({ min: a * 5 * CELL * WORLD_SCALE, max: b * 5 * CELL * WORLD_SCALE });
 
 const weapons = [
-  { id: 'club', glyph: 'club', kind: 'swing', base: 8, reach: 62, speedScale: 24 },
-  { id: 'sling', glyph: '🪢', kind: 'sling', base: 4, reach: 260, speedScale: 12 },
-  { id: 'axe', glyph: '🪓', kind: 'swing', base: 10, reach: 68, speedScale: 26 },
-  { id: 'sword', glyph: '🗡️', kind: 'swing', base: 9, reach: 72, speedScale: 27 },
-  { id: 'bow', glyph: '🏹', kind: 'bow', base: 5, reach: 400, speedScale: 20 },
-  { id: 'ballista', glyph: 'ballista', kind: 'sling', base: 14, reach: 470, speedScale: 10 },
-  { id: 'cannon', glyph: 'cannon', kind: 'sling', base: 18, reach: 540, speedScale: 8 },
+  { id: 'club', glyph: 'club', kind: 'swing', knock: 8, pierce: 0.4, reach: 62 },
+  { id: 'sling', glyph: '🪢', kind: 'sling', knock: 7, pierce: 0.5, reach: 280 },
+  { id: 'axe', glyph: '🪓', kind: 'swing', knock: 6, pierce: 6.5, reach: 68 },
+  { id: 'sword', glyph: '🗡️', kind: 'swing', knock: 1.2, pierce: 9, reach: 72 },
+  { id: 'bow', glyph: '🏹', kind: 'bow', knock: 1.5, pierce: 9.5, reach: 440 },
+  { id: 'ballista', glyph: 'ballista', kind: 'bow', knock: 5.5, pierce: 11, reach: 520 },
+  { id: 'cannon', glyph: 'cannon', kind: 'cannon', knock: 12, pierce: 2, reach: 560 },
 ];
 
 const zones = [
-  { id: 'orchard', name: 'Club Orchard', palette: ['#1f6a3a', '#2f8e4d', '#4f5f3e'], enemy: '🐗', unlock: 'club', ring: ring(0, 1), arc: [0, 12], deco:'orchard' },
-  { id: 'axe', name: 'Axe Grove', palette: ['#3e6b2a', '#6f8f33', '#8cad4a'], enemy: '🦂', unlock: 'axe', ring: ring(1, 2), arc: [9, 3], deco:'woods' },
-  { id: 'creek', name: 'Sling Creekside', palette: ['#2a5f79', '#3e89a8', '#78b8d4'], enemy: '🪨', unlock: 'sling', ring: ring(1, 2), arc: [3, 12], slowWater: true, deco:'creek' },
-  { id: 'pasture', name: 'Pasture', palette: ['#6d8f4b', '#92b862', '#c0d98a'], enemy: '🐺', unlock: 'horse', ring: ring(2, 3), arc: [3, 7], deco:'pasture' },
-  { id: 'smith', name: 'Smith Town', palette: ['#6d5743', '#8f7057', '#c19a72'], enemy: '🛡️', unlock: 'sword', ring: ring(2, 3), arc: [7, 11], deco:'town' },
-  { id: 'fletcher', name: 'Fletcher Village', palette: ['#5a7a3f', '#7da85b', '#b8d685'], enemy: '🦅', unlock: 'bow', ring: ring(2, 3), arc: [11, 3], deco:'village' },
-  { id: 'tundra', name: 'Tundra', palette: ['#8faecc', '#c8d8e6', '#f5fbff'], enemy: '😠', unlock: null, ring: ring(3, 4), arc: [11.5, 0.5], deco:'snow' },
-  { id: 'sawmill', name: 'Sawmill Woods', palette: ['#355c37', '#4f7f4a', '#7ba36f'], enemy: '🧌', unlock: 'ballista', ring: ring(3, 4), arc: [0.5, 2.5], deco:'woods' },
-  { id: 'marsh', name: 'Marsh', palette: ['#456243', '#5e7f59', '#89a37d'], enemy: '🐍', unlock: null, ring: ring(3, 4), arc: [2.5, 3.5], slowWater: true, deco:'marsh' },
-  { id: 'marches', name: 'Marches', palette: ['#5c6166', '#7f868c', '#a4adb4'], enemy: '🛡️', unlock: null, ring: ring(3, 4), arc: [3.5, 5.5], deco:'marches' },
-  { id: 'desert', name: 'Desert', palette: ['#9e7338', '#c89a4f', '#e6c877'], enemy: '😠', unlock: null, ring: ring(3, 4), arc: [5.5, 6.5], deco:'desert' },
-  { id: 'volcano', name: 'Volcano', palette: ['#6e231f', '#a73a2f', '#df6a3f'], enemy: '🐜', unlock: null, ring: ring(3, 4), arc: [6.5, 8.5], deco:'volcano' },
-  { id: 'mine', name: 'Mine', palette: ['#4f4a52', '#726b77', '#9a92a1'], enemy: '😠', unlock: null, ring: ring(3, 4), arc: [8.5, 9.5], deco:'mine' },
-  { id: 'frost', name: 'Frosty Mountain', palette: ['#7e9fbe', '#a4bfd8', '#d8ecfb'], enemy: '❄️', unlock: null, ring: ring(3, 4), arc: [9.5, 11.5], deco:'frost' },
-  { id: 'swamp', name: 'Swamp', palette: ['#2f5a2f', '#4f7b46', '#7ea85f'], enemy: '☠️', unlock: null, ring: ring(4, 5), arc: [2, 4], slowWater: true, deco:'swamp' },
-  { id: 'foundry', name: 'Foundry/Monastery', palette: ['#5e4339', '#7a5a4f', '#a37d6b'], enemy: '👹', unlock: 'cannon', ring: ring(4, 5), arc: [8, 10], deco:'foundry' },
-  { id: 'outer_wilds', name: 'Outer Wilds', palette: ['#4f6f8f', '#6487ad', '#85abd0'], enemy: '😠', unlock: null, ring: ring(4, 5), arc: [10, 8], deco:'outer' },
+  { id: 'orchard', name: 'Club Orchard', palette: ['#245e3a','#2e7548','#3f8d59'], enemy: '🐗', unlock: 'club', ring: ring(0,1), arc:[0,12], deco:'orchard' },
+  { id: 'axe', name: 'Axe Grove', palette: ['#2f612f','#3b7c3a','#5b8f4f'], enemy: '🦂', unlock: 'axe', ring: ring(1,2), arc:[9,3], deco:'axe_grove' },
+  { id: 'creek', name: 'Sling Creekside', palette: ['#2a5f79','#3e89a8','#78b8d4'], enemy: '🪨', unlock: 'sling', ring: ring(1,2), arc:[3,12], slowWater:true, deco:'creek' },
+  { id: 'pasture', name: 'Pasture', palette: ['#6d8f4b','#92b862','#c0d98a'], enemy: '🐺', unlock: 'horse', ring: ring(2,3), arc:[3,7], deco:'pasture' },
+  { id: 'smith', name: 'Smith Town', palette: ['#7a5a48','#9a7358','#ba8a6a'], enemy: '🛡️', unlock: 'sword', ring: ring(2,3), arc:[7,11], deco:'smith' },
+  { id: 'fletcher', name: 'Fletcher Village', palette: ['#5a7a3f','#7da85b','#b8d685'], enemy: '🦅', unlock: 'bow', ring: ring(2,3), arc:[11,3], deco:'fletcher' },
+  { id: 'tundra', name: 'Tundra', palette: ['#8faecc','#c8d8e6','#f5fbff'], enemy: '😠', unlock: null, ring: ring(3,4), arc:[11.5,0.5], deco:'snow' },
+  { id: 'sawmill', name: 'Sawmill Woods', palette: ['#254d2a','#2f6232','#3e7840'], enemy: '🧌', unlock: 'ballista', ring: ring(3,4), arc:[0.5,2.5], deco:'sawmill' },
+  { id: 'marsh', name: 'Marsh', palette: ['#456243','#5e7f59','#89a37d'], enemy: '🐍', unlock: null, ring: ring(3,4), arc:[2.5,3.5], slowWater:true, deco:'marsh' },
+  { id: 'marches', name: 'Marches', palette: ['#6d3e2f','#8a4f37','#b06343'], enemy: '🛡️', unlock: null, ring: ring(3,4), arc:[3.5,5.5], deco:'marches' },
+  { id: 'desert', name: 'Desert', palette: ['#9e7338','#c89a4f','#e6c877'], enemy: '😠', unlock: null, ring: ring(3,4), arc:[5.5,6.5], deco:'desert' },
+  { id: 'volcano', name: 'Volcano', palette: ['#6e231f','#a73a2f','#df6a3f'], enemy: '🐜', unlock: null, ring: ring(3,4), arc:[6.5,8.5], deco:'volcano' },
+  { id: 'mine', name: 'Mine', palette: ['#4f4a52','#726b77','#9a92a1'], enemy: '😠', unlock: null, ring: ring(3,4), arc:[8.5,9.5], deco:'mine' },
+  { id: 'frost', name: 'Frosty Mountain', palette: ['#7e9fbe','#a4bfd8','#d8ecfb'], enemy: '❄️', unlock: null, ring: ring(3,4), arc:[9.5,11.5], deco:'frost' },
+  { id: 'swamp', name: 'Swamp', palette: ['#2f5a2f','#4f7b46','#7ea85f'], enemy: '☠️', unlock: null, ring: ring(4,5), arc:[2,4], slowWater:true, deco:'swamp' },
+  { id: 'foundry', name: 'Foundry/Monastery', palette: ['#5e4339','#7a5a4f','#a37d6b'], enemy: '👹', unlock: 'cannon', ring: ring(4,5), arc:[8,10], deco:'foundry' },
 ];
 
-const state = { t: 0, last: 0, mouseDX: 0, mouseDY: 0, keys: new Set(), mouse: { x: 0, y: 0, down: false, held: 0 }, camera: { x: MAP_CENTER.x, y: MAP_CENTER.y }, player: null, projectiles: [], enemies: [], terrain: [], waves: {} };
-const wrap12 = (h) => (h % 12 + 12) % 12;
-const inArc = (hour, [start, end]) => { const h = wrap12(hour), s = wrap12(start), e = wrap12(end); return s <= e ? h >= s && h < e : h >= s || h < e; };
-const toClockHour = (theta) => wrap12((theta * 6 / Math.PI) + 3); // 12 at top
-
-function getZone(x, y) {
-  const dx = x - MAP_CENTER.x, dy = y - MAP_CENTER.y;
-  const r = Math.hypot(dx, dy), hour = toClockHour(Math.atan2(dy, dx));
-  return zones.find((z) => r >= z.ring.min && r < z.ring.max && inArc(hour, z.arc)) || zones[0];
-}
-
-function edgeCompress01(u) { if (u <= 0.9) return u; const t = (u - 0.9) / 0.1; return 0.9 + 0.1 * ((Math.exp(2.7 * t) - 1) / (Math.exp(2.7) - 1)); }
-function projectWorld(wx, wy) {
-  const dx = wx - state.camera.x, dy = wy - state.camera.y;
-  const nx = dx / (innerWidth * 0.75), ny = dy / (innerHeight * 0.75);
-  const sx = Math.sign(nx) * edgeCompress01(Math.min(1, Math.abs(nx)));
-  const sy = Math.sign(ny) * edgeCompress01(Math.min(1, Math.abs(ny)));
-  return { x: innerWidth * 0.5 + sx * innerWidth * 0.5, y: innerHeight * 0.5 + sy * innerHeight * 0.5, scale: Math.max(0.25, 1 - 0.3 * Math.max(Math.abs(sx), Math.abs(sy))) };
-}
-
-function resetWorld() {
-  const s = { x: MAP_CENTER.x, y: MAP_CENTER.y };
-  state.player = { x: s.x, y: s.y, vx: 0, vy: 0, hp: 20, weapon: 'club', unlocked: new Set(['club']), swing: 0, lastX: s.x, lastY: s.y };
-  state.projectiles = []; state.enemies = []; state.terrain = []; state.waves = {};
-  for (const z of zones) {
-    state.waves[z.id] = { spawned: false, cleared: false };
-    spawnZoneDecor(z);
-  }
-}
+const state = { t:0,last:0,keys:new Set(),mouse:{x:0,y:0,down:false,held:0},camera:{x:MAP_CENTER.x,y:MAP_CENTER.y},player:null,projectiles:[],enemies:[],terrain:[],waves:{},mount:'foot' };
+const wrap12=h=>(h%12+12)%12; const inArc=(h,[s,e])=>{h=wrap12(h);s=wrap12(s);e=wrap12(e);return s<=e?(h>=s&&h<e):(h>=s||h<e)}; const toClockHour=t=>wrap12((t*6/Math.PI)+3);
+const weaponDef=()=>weapons.find(w=>w.id===state.player.weapon);
+function getZone(x,y){const dx=x-MAP_CENTER.x,dy=y-MAP_CENTER.y,r=Math.hypot(dx,dy),h=toClockHour(Math.atan2(dy,dx)); return zones.find(z=>r>=z.ring.min&&r<z.ring.max&&inArc(h,z.arc))||null;}
+function projectWorld(wx,wy){const dx=wx-state.camera.x,dy=wy-state.camera.y; return {x:innerWidth/2+dx*0.22,y:innerHeight/2+dy*0.22,scale:0.5};}
 
 function spawnZoneDecor(z){
-  const count = {orchard:30, woods:26, frost:20, mine:18, foundry:18, marches:14, desert:16, village:10, town:8, swamp:15, marsh:14, volcano:10, creek:10, pasture:8, outer:8, snow:8}[z.deco] || 10;
-  for(let i=0;i<count;i++){
-    const h = Math.random()*12; if(!inArc(h,z.arc)) continue;
-    const rr = z.ring.min + (z.ring.max-z.ring.min)*(0.1+0.8*Math.random());
-    const th = (h-3)*Math.PI/6;
-    const x = MAP_CENTER.x + Math.cos(th)*rr;
-    const y = MAP_CENTER.y + Math.sin(th)*rr;
-    let glyph='🌿';
-    if(z.deco==='orchard') glyph = Math.random()<0.6?'🌳':'🌲';
-    if(z.deco==='woods') glyph = Math.random()<0.7?'🌲':'🌲';
-    if(z.deco==='mine' || z.deco==='foundry' || z.deco==='frost') glyph='🪨';
-    if(z.deco==='marches') glyph='♜';
-    if(z.deco==='desert') glyph='🌵';
-    state.terrain.push({x,y,hp:3,glyph,zone:z.id});
-  }
+  const cfg={orchard:{n:35,g:['🌳','🌳','🌳','🌲']},axe_grove:{n:100,g:['🌲','🌲','🌲','🌲','🌲','🌳']},sawmill:{n:1000,g:['🌲','🌳','🌴','🌲']},smith:{n:90,g:['🧱']},fletcher:{n:25,g:['🧱','🌲']},foundry:{n:35,g:['🧱','🪨']},mine:{n:80,g:['🪨']},frost:{n:70,g:['🪨']},marches:{n:45,g:['♜']},desert:{n:55,g:['🌵']},creek:{n:18,g:['🌲']},swamp:{n:18,g:['🌲']},pasture:{n:8,g:['🌿']},marsh:{n:14,g:['🌿']},volcano:{n:16,g:['🪨']},snow:{n:10,g:['🪨']}}[z.deco]||{n:8,g:['🌿']};
+  for(let i=0;i<cfg.n;i++){const h=Math.random()*12;if(!inArc(h,z.arc))continue;const rr=z.ring.min+(z.ring.max-z.ring.min)*(0.08+0.84*Math.random());const th=(h-3)*Math.PI/6; const glyph=cfg.g[(Math.random()*cfg.g.length)|0]; const type=(glyph==='🧱'||glyph==='🪨')?'wall':'tree'; state.terrain.push({x:MAP_CENTER.x+Math.cos(th)*rr,y:MAP_CENTER.y+Math.sin(th)*rr,hp:3,glyph,type,solid:true,stump:false,color:glyph==='♜'?'#000':null});}
 }
 
-function riverPushAt(x,y){
-  const dx=x-MAP_CENTER.x,dy=y-MAP_CENTER.y; const r=Math.hypot(dx,dy); const h=toClockHour(Math.atan2(dy,dx));
-  const onRiver = Math.abs(r-(3*5*CELL*WORLD_SCALE))<50 && (inArc(h,[11,2.5]) || inArc(h,[2.5,4]));
-  if(!onRiver) return {x:0,y:0,slow:1};
-  const dir = (4.2-3)*Math.PI/6; // toward swamp side (right/lower-right)
-  return {x:Math.cos(dir)*45,y:Math.sin(dir)*45,slow:0.7};
-}
+function resetWorld(){const s={x:MAP_CENTER.x,y:MAP_CENTER.y};state.player={x:s.x,y:s.y,vx:0,vy:0,hp:20,weapon:'club',unlocked:new Set(['club']),swing:0,lastX:s.x,lastY:s.y}; state.mount='foot'; state.projectiles=[];state.enemies=[];state.terrain=[];state.waves={}; for(const z of zones){state.waves[z.id]={spawned:false,cleared:false};spawnZoneDecor(z);} }
 
-function resize(){canvas.width=innerWidth*devicePixelRatio;canvas.height=innerHeight*devicePixelRatio;ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);} addEventListener('resize',resize);
-addEventListener('keydown',e=>{state.keys.add(e.key.toLowerCase()); if(e.key===' ') trig(true); if(e.key.toLowerCase()==='r') resetWorld(); if(/[1-7]/.test(e.key)){const w=weapons[Number(e.key)-1]; if(state.player.unlocked.has(w.id)) state.player.weapon=w.id;}});
-addEventListener('keyup',e=>{state.keys.delete(e.key.toLowerCase()); if(e.key===' ') rel(true);});
-canvas.addEventListener('mousemove',e=>{state.mouseDX=e.movementX||0;state.mouseDY=e.movementY||0;state.mouse.x=e.clientX;state.mouse.y=e.clientY;});
-canvas.addEventListener('mousedown',()=>trig(false)); addEventListener('mouseup',()=>rel(false));
+function riverPushAt(x,y){const dx=x-MAP_CENTER.x,dy=y-MAP_CENTER.y,r=Math.hypot(dx,dy),h=toClockHour(Math.atan2(dy,dx));const on=Math.abs(r-(3*5*CELL*WORLD_SCALE))<70&&(inArc(h,[11,2.5])||inArc(h,[2.5,4])); if(!on)return{x:0,y:0,slow:1}; const th=(4.2-3)*Math.PI/6; return{x:Math.cos(th)*65,y:Math.sin(th)*65,slow:0.64};}
 
-const weaponDef=()=>weapons.find(w=>w.id===state.player.weapon);
-const trig=sp=>{if(sp?state.spaceDown:state.mouse.down)return; if(sp)state.spaceDown=true; else state.mouse.down=true; state.mouse.held=0; if(weaponDef().kind==='swing') state.player.swing=1;};
-const rel=sp=>{if(sp)state.spaceDown=false; else state.mouse.down=false; const w=weaponDef(); if(w.kind==='bow'||w.kind==='sling') fireCharge(w);};
+function collidesTree(x,y){for(const t of state.terrain){if(!t.solid)continue; if(Math.hypot(t.x-x,t.y-y)<34)return t;} return null;}
 
-function fireCharge(w){
-  const h=Math.min(1,state.mouse.held/1.5),p=state.player,a=Math.atan2(state.mouse.y-innerHeight/2,state.mouse.x-innerWidth/2),sp=220+h*420;
-  state.projectiles.push({x:p.x+Math.cos(a)*24,y:p.y+Math.sin(a)*24,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:2,dmg:Math.round(w.base+h*w.speedScale),glyph:'➳',size:w.id==='ballista'?34:22});
-}
-
-function update(dt){
-  const p=state.player; state.t+=dt;
-  let dx=(state.keys.has('d')||state.keys.has('arrowright')?1:0)-(state.keys.has('a')||state.keys.has('arrowleft')?1:0),dy=(state.keys.has('s')||state.keys.has('arrowdown')?1:0)-(state.keys.has('w')||state.keys.has('arrowup')?1:0);
-  const m=Math.hypot(dx,dy)||1; dx/=m;dy/=m;
-  const zone=getZone(p.x,p.y); const flow=riverPushAt(p.x,p.y);
-  const hasHorse=p.unlocked.has('horse'); const speedMul=hasHorse?1.45:1; const accel=hasHorse?3.6:7.5;
-  const tvx=dx*220*speedMul*flow.slow,tvy=dy*220*speedMul*flow.slow;
-  p.vx+=(tvx-p.vx)*Math.min(1,accel*dt); p.vy+=(tvy-p.vy)*Math.min(1,accel*dt);
-  p.x+=(p.vx+flow.x)*dt; p.y+=(p.vy+flow.y)*dt;
-  const rx=p.x-MAP_CENTER.x, ry=p.y-MAP_CENTER.y, rr=Math.hypot(rx,ry);
-  if(rr>WORLD_MAX_R-30){const s=(WORLD_MAX_R-30)/rr; p.x=MAP_CENTER.x+rx*s; p.y=MAP_CENTER.y+ry*s; p.vx*=0.2; p.vy*=0.2;}
+function update(dt){const p=state.player; let dx=(state.keys.has('d')?1:0)-(state.keys.has('a')?1:0),dy=(state.keys.has('s')?1:0)-(state.keys.has('w')?1:0); const m=Math.hypot(dx,dy)||1;dx/=m;dy/=m;
+  const zone=getZone(p.x,p.y), flow=riverPushAt(p.x,p.y); const horseEq=state.mount==='horse'&&p.unlocked.has('horse'); const speed=horseEq?1.5:1,accel=horseEq?3.2:7.5;
+  const tvx=dx*220*speed*flow.slow,tvy=dy*220*speed*flow.slow; p.vx+=(tvx-p.vx)*Math.min(1,accel*dt); p.vy+=(tvy-p.vy)*Math.min(1,accel*dt);
+  const nx=p.x+(p.vx+flow.x)*dt, ny=p.y+(p.vy+flow.y)*dt; const block=collidesTree(nx,ny); if(block){ if(block.stump){p.vx=0;p.vy=0;} } else {p.x=nx;p.y=ny;}
+  const rr=Math.hypot(p.x-MAP_CENTER.x,p.y-MAP_CENTER.y); if(rr>WORLD_MAX_R-20){const s=(WORLD_MAX_R-20)/rr;p.x=MAP_CENTER.x+(p.x-MAP_CENTER.x)*s;p.y=MAP_CENTER.y+(p.y-MAP_CENTER.y)*s;p.vx=0;p.vy=0;}
   state.camera.x+=(p.x-state.camera.x)*0.1; state.camera.y+=(p.y-state.camera.y)*0.1;
-  if(state.mouse.down||state.spaceDown) state.mouse.held+=dt;
-  if(zone&&!state.waves[zone.id].spawned){state.waves[zone.id].spawned=true; for(let i=0;i<4;i++) state.enemies.push({x:p.x+Math.cos(i)*140,y:p.y+Math.sin(i*2)*120,hp:8,glyph:zone.enemy||'😠',zone:zone.id});}
-  if(p.swing>0){p.swing-=dt*3; doSwingDamage();}
-  for(const pr of state.projectiles){pr.x+=pr.vx*dt;pr.y+=pr.vy*dt;pr.life-=dt;}
+  if(state.mouse.down)state.mouse.held+=dt;
+  if(zone&&!state.waves[zone.id].spawned){state.waves[zone.id].spawned=true; for(let i=0;i<4;i++)state.enemies.push({x:p.x+Math.cos(i)*140,y:p.y+Math.sin(i*2)*120,hp:8,glyph:zone.enemy||'😠',zone:zone.id,vx:0,vy:0});}
+  if(p.swing>0){p.swing-=dt*3;doSwingDamage();}
+  for(const pr of state.projectiles){const nx=pr.x+pr.vx*dt,ny=pr.y+pr.vy*dt; if(collidesTree(nx,ny)&&!pr.overStump){pr.life=0;continue;} pr.x=nx;pr.y=ny;pr.life-=dt;}
   state.projectiles=state.projectiles.filter(pr=>pr.life>0);
-  for(const e of state.enemies){const ax=p.x-e.x,ay=p.y-e.y,d=Math.hypot(ax,ay)||1; e.x+=ax/d*80*dt; e.y+=ay/d*80*dt; if(d<20) p.hp=Math.max(0,p.hp-dt*2);} 
-  hitChecks();
-  if(zone&&!state.enemies.some(e=>e.zone===zone.id&&e.hp>0)&&!state.waves[zone.id].cleared){state.waves[zone.id].cleared=true; if(zone.unlock) p.unlocked.add(zone.unlock);} 
+  for(const e of state.enemies){const ax=p.x-e.x,ay=p.y-e.y,d=Math.hypot(ax,ay)||1;e.x+=ax/d*80*dt;e.y+=ay/d*80*dt;if(d<20)p.hp=Math.max(0,p.hp-dt*2);} hitChecks();
+  if(zone&&!state.enemies.some(e=>e.zone===zone.id&&e.hp>0)&&!state.waves[zone.id].cleared){state.waves[zone.id].cleared=true;if(zone.unlock)p.unlocked.add(zone.unlock);} }
+
+function applyHit(target, weapon, scale=1){
+  const knock=weapon.knock*scale, pierce=weapon.pierce*scale;
+  if(target.type==='tree' && !target.stump){target.hp -= (knock*pierce)*0.08;}
+  else if(target.type==='wall' && !target.stump){target.hp -= knock*0.12;}
+  if(target.hp<=0 && !target.stump){target.stump=true;target.solid=true; target.type='stump'; target.glyph=(target.type==='wall'?'◼':'◼');}
 }
 
-function doSwingDamage(){const p=state.player,w=weaponDef(); if(w.kind!=='swing')return; const mv=Math.hypot(p.x-p.lastX,p.y-p.lastY)*60, mouse=Math.hypot(state.mouseDX,state.mouseDY), power=w.base+(mv+mouse)*0.08, a=Math.atan2(state.mouse.y-innerHeight/2,state.mouse.x-innerWidth/2), sx=p.x+Math.cos(a)*w.reach, sy=p.y+Math.sin(a)*w.reach; for(const e of state.enemies) if(Math.hypot(e.x-sx,e.y-sy)<45)e.hp-=power*0.08; for(const t of state.terrain) if(Math.hypot(t.x-sx,t.y-sy)<45)t.hp-=power*0.06;}
-function hitChecks(){for(const pr of state.projectiles){for(const e of state.enemies) if(Math.hypot(e.x-pr.x,e.y-pr.y)<22){e.hp-=pr.dmg;pr.life=0;} for(const t of state.terrain) if(Math.hypot(t.x-pr.x,t.y-pr.y)<20){t.hp-=pr.dmg*0.8;pr.life=0;}} state.enemies=state.enemies.filter(e=>e.hp>0); state.terrain=state.terrain.filter(t=>t.hp>0);} 
+function doSwingDamage(){const p=state.player,w=weaponDef();if(w.kind!=='swing')return; const a=Math.atan2(state.mouse.y-innerHeight/2,state.mouse.x-innerWidth/2); const sx=p.x+Math.cos(a)*w.reach,sy=p.y+Math.sin(a)*w.reach;
+ for(const e of state.enemies){if(Math.hypot(e.x-sx,e.y-sy)<45)e.hp-=w.pierce*0.5+w.knock*0.25;}
+ for(const t of state.terrain){if(Math.hypot(t.x-sx,t.y-sy)<45)applyHit(t,w,1);} }
 
-function hex(x,y,r){ctx.beginPath(); for(let i=0;i<6;i++){const a=Math.PI/3*i+Math.PI/6,px=x+Math.cos(a)*r,py=y+Math.sin(a)*r; i?ctx.lineTo(px,py):ctx.moveTo(px,py);} ctx.closePath();}
-function drawHexBackground(){const size=18,h=Math.sqrt(3)*size,v=1.5*size,worldW=innerWidth*1.6,worldH=innerHeight*1.6; const r0=Math.floor((state.camera.y-worldH*0.5)/v)-2,r1=Math.ceil((state.camera.y+worldH*0.5)/v)+2,c0=Math.floor((state.camera.x-worldW*0.5)/h)-2,c1=Math.ceil((state.camera.x+worldW*0.5)/h)+2; for(let row=r0;row<=r1;row++){ for(let col=c0;col<=c1;col++){ const wx=col*h+(row%2?h/2:0), wy=row*v, p=projectWorld(wx,wy); if(p.x<-30||p.x>innerWidth+30||p.y<-30||p.y>innerHeight+30) continue; const z=getZone(wx,wy), pal=z.palette; const q = col - ((row - (row & 1)) >> 1); const idx=((q-row)%3+3)%3; ctx.fillStyle=pal[idx]; hex(p.x,p.y,Math.max(2,size*p.scale)); ctx.fill(); } } }
+function hitChecks(){for(const pr of state.projectiles){for(const e of state.enemies){if(Math.hypot(e.x-pr.x,e.y-pr.y)<22){e.hp-=pr.pierce*0.6+pr.knock*0.4; pr.life=0;}} for(const t of state.terrain){if(Math.hypot(t.x-pr.x,t.y-pr.y)<22){applyHit(t,{knock:pr.knock,pierce:pr.pierce},1); pr.life=0;}}} state.enemies=state.enemies.filter(e=>e.hp>0);} 
 
-function drawRiver(){const seg=[]; for(let hh=11;hh<=4.2;hh+=0.12){const h=hh>12?hh-12:hh; const th=(h-3)*Math.PI/6, rr=3*5*CELL*WORLD_SCALE+Math.sin(h*3)*16; seg.push(projectWorld(MAP_CENTER.x+Math.cos(th)*rr,MAP_CENTER.y+Math.sin(th)*rr)); if(hh>=12&&hh<13) hh=0; } ctx.strokeStyle='#67cfffcc';ctx.lineWidth=28;ctx.lineCap='round';ctx.beginPath(); seg.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)); ctx.stroke();}
+function fireCharge(){const w=weaponDef(); const h=Math.min(1,state.mouse.held/1.5),p=state.player,a=Math.atan2(state.mouse.y-innerHeight/2,state.mouse.x-innerWidth/2),sp=240+h*460;
+ let glyph='●',size=12,knock=w.knock,pierce=w.pierce;
+ if(w.id==='bow'){glyph='➳';size=22;} if(w.id==='ballista'){glyph='➳';size=34;} if(w.id==='cannon'){glyph='●';size=28;knock=13;pierce=2.2;} if(w.id==='sling'){glyph='●';size=12;knock=7.5;pierce=0.5;}
+ state.projectiles.push({x:p.x+Math.cos(a)*24,y:p.y+Math.sin(a)*24,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:2.2,glyph,size,knock,pierce}); }
 
-function render(){
-  ctx.clearRect(0,0,innerWidth,innerHeight); drawHexBackground(); drawRiver();
-  const bigVol=projectWorld(MAP_CENTER.x+Math.cos((7.5-3)*Math.PI/6)*(3.7*5*CELL*WORLD_SCALE),MAP_CENTER.y+Math.sin((7.5-3)*Math.PI/6)*(3.7*5*CELL*WORLD_SCALE));
-  const bigFr=projectWorld(MAP_CENTER.x+Math.cos((10.5-3)*Math.PI/6)*(3.7*5*CELL*WORLD_SCALE),MAP_CENTER.y+Math.sin((10.5-3)*Math.PI/6)*(3.7*5*CELL*WORLD_SCALE));
-  ctx.font=`${Math.max(40,72*bigVol.scale)}px serif`; ctx.fillText('🌋',bigVol.x,bigVol.y); ctx.font=`${Math.max(40,72*bigFr.scale)}px serif`; ctx.fillText('🏔️',bigFr.x,bigFr.y);
+function hex(x,y,r){ctx.beginPath();for(let i=0;i<6;i++){const a=Math.PI/3*i+Math.PI/6,px=x+Math.cos(a)*r,py=y+Math.sin(a)*r;i?ctx.lineTo(px,py):ctx.moveTo(px,py);}ctx.closePath();}
+function drawHexBackground(){const size=8,h=Math.sqrt(3)*size,v=1.5*size,worldW=innerWidth*4.2,worldH=innerHeight*4.2; const r0=Math.floor((state.camera.y-worldH*0.5)/v)-2,r1=Math.ceil((state.camera.y+worldH*0.5)/v)+2,c0=Math.floor((state.camera.x-worldW*0.5)/h)-2,c1=Math.ceil((state.camera.x+worldW*0.5)/h)+2; for(let row=r0;row<=r1;row++){for(let col=c0;col<=c1;col++){const wx=col*h+(row%2?h/2:0),wy=row*v,p=projectWorld(wx,wy); if(p.x<-8||p.x>innerWidth+8||p.y<-8||p.y>innerHeight+8)continue; const z=getZone(wx,wy); if(!z)continue; const q=col-((row-(row&1))>>1),idx=((q-row)%3+3)%3; ctx.fillStyle=z.palette[idx]; hex(p.x,p.y,size); ctx.fill();}}}
+function drawRiver(){const seg=[]; for(let h=11;h<=12;h+=0.08){const th=(h-3)*Math.PI/6,r=3*5*CELL*WORLD_SCALE;seg.push(projectWorld(MAP_CENTER.x+Math.cos(th)*r,MAP_CENTER.y+Math.sin(th)*r));} for(let h=0;h<=4.2;h+=0.08){const th=(h-3)*Math.PI/6,r=3*5*CELL*WORLD_SCALE;seg.push(projectWorld(MAP_CENTER.x+Math.cos(th)*r,MAP_CENTER.y+Math.sin(th)*r));} ctx.strokeStyle='#6ad7ffcc';ctx.lineWidth=42;ctx.lineCap='round';ctx.beginPath(); seg.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)); ctx.stroke();}
 
-  for(const t of state.terrain){const p=projectWorld(t.x,t.y); ctx.font=`${Math.max(10, (t.glyph==='♜'?44:30)*p.scale)}px serif`; ctx.fillText(t.glyph,p.x-10*p.scale,p.y+8*p.scale);} 
-  for(const e of state.enemies){const p=projectWorld(e.x,e.y); ctx.font=`${Math.max(11,26*p.scale)}px serif`; ctx.fillText(e.glyph,p.x-10*p.scale,p.y+8*p.scale);} 
-  for(const pr of state.projectiles){const p=projectWorld(pr.x,pr.y), a=Math.atan2(pr.vy,pr.vx); ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(a); ctx.font=`${Math.max(12,(pr.size||22)*p.scale)}px serif`; ctx.fillText('➳',0,0); ctx.restore(); }
+function render(){ctx.clearRect(0,0,innerWidth,innerHeight); drawHexBackground(); drawRiver();
+ for(const t of state.terrain){const p=projectWorld(t.x,t.y); if(t.color)ctx.fillStyle=t.color; else ctx.fillStyle='#fff'; if(t.stump){ctx.fillStyle='#4a2b1a';ctx.fillRect(p.x-5,p.y-5,10,10);} else {ctx.font=`${t.glyph==='♜'?22:16}px serif`; ctx.fillText(t.glyph,p.x,p.y);} }
+ for(const e of state.enemies){const p=projectWorld(e.x,e.y);ctx.font='16px serif';ctx.fillStyle='#fff';ctx.fillText(e.glyph,p.x,p.y);} 
+ for(const pr of state.projectiles){const p=projectWorld(pr.x,pr.y),a=Math.atan2(pr.vy,pr.vx); ctx.save();ctx.translate(p.x,p.y);ctx.rotate(a);ctx.fillStyle='#111'; if(pr.glyph==='➳'){ctx.font=`${pr.size}px serif`;ctx.fillText('➳',0,0);} else {ctx.beginPath();ctx.arc(0,0,pr.size*0.25,0,Math.PI*2);ctx.fill();} ctx.restore();}
+ const pp=projectWorld(state.player.x,state.player.y),aim=Math.atan2(state.mouse.y-innerHeight/2,state.mouse.x-innerWidth/2),w=weaponDef(); ctx.font='20px serif';ctx.fillStyle='#fff';ctx.fillText('🙂',pp.x,pp.y);
+ ctx.save();ctx.translate(pp.x,pp.y);ctx.rotate(aim); if(w.id==='club'){ctx.strokeStyle='#6f3f1f';ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(8,0);ctx.lineTo(24,0);ctx.stroke();} else if(w.id==='axe'){ctx.save();ctx.translate(8,0);ctx.rotate(Math.PI);ctx.font='18px serif';ctx.fillText('🪓',0,4);ctx.restore();} else if(w.id==='ballista'){ctx.font='20px serif';ctx.fillText('🏹',8,4);ctx.font='16px serif';ctx.fillText('⚙️',14,6);} else if(w.id==='cannon'){ctx.save();ctx.translate(10,0);ctx.rotate(-Math.PI/2);ctx.scale(0.6,1.2);ctx.font='24px serif';ctx.fillText('🔔',0,0);ctx.restore();} else {ctx.font='18px serif';ctx.fillText(w.glyph,8,4);} ctx.restore();
+ const z=getZone(state.player.x,state.player.y); const dx=state.player.x-MAP_CENTER.x,dy=state.player.y-MAP_CENTER.y,rad=(Math.hypot(dx,dy)/(5*CELL*WORLD_SCALE)).toFixed(2),clock=wrap12((Math.atan2(dy,dx)*6/Math.PI)+3).toFixed(2);
+ ui.innerHTML=`HP ${state.player.hp.toFixed(1)}<br>Zone: ${z?z.name:'Boundary'}<br>R: ${rad} · Clock12: ${clock}<br>Weapon: ${w.id}<br>Mount: ${state.mount}<br>Unlocked: ${[...state.player.unlocked].join(', ')}<br><button onclick="resetWorld()">Reset World</button>`; }
 
-  const pp=projectWorld(state.player.x,state.player.y),aim=Math.atan2(state.mouse.y-innerHeight/2,state.mouse.x-innerWidth/2); ctx.font='34px serif';ctx.fillText('🙂',pp.x-14,pp.y+12);
-  ctx.save();ctx.translate(pp.x,pp.y); const w=weaponDef(),swingT=Math.max(0,state.player.swing),swingAngle=w.kind==='swing'?Math.sin((1-swingT)*Math.PI*2.2)*0.8*swingT:0; ctx.rotate(aim+swingAngle);
-  if(w.id==='club'){ctx.strokeStyle='#6f3f1f';ctx.lineWidth=11;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(20,0);ctx.lineTo(56,0);ctx.stroke();}
-  else if(w.id==='axe'){ctx.save();ctx.translate(16,0);ctx.rotate(Math.PI);ctx.font='28px serif';ctx.fillText('🪓',0,8);ctx.restore();}
-  else if(w.id==='ballista'){ctx.font='30px serif';ctx.fillText('🏹',20,8);ctx.font='24px serif';ctx.fillText('⚙️',34,11);}
-  else if(w.id==='cannon'){ctx.save();ctx.translate(28,0);ctx.rotate(-Math.PI/2);ctx.scale(0.65,1.15);ctx.font='34px serif';ctx.fillText('🔔',0,0);ctx.restore();}
-  else if(w.kind==='bow'&&(state.mouse.down||state.spaceDown)){const t=Math.min(1,state.mouse.held/1.7),wob=Math.sin(state.t*60*t)*4*t;ctx.font=`${24+16*t+wob}px serif`;ctx.fillText('🏹',22+18*t,8+wob);ctx.font=`${18+14*t}px serif`;ctx.fillText('➳',42+24*t,8);} 
-  else if(w.kind==='sling'&&(state.mouse.down||state.spaceDown)){const t=Math.min(1,state.mouse.held/1.4),wob=Math.sin(state.t*50*t)*10*t;ctx.font='28px serif';ctx.fillText('🪢',24,8);ctx.fillStyle='#ddd';ctx.beginPath();ctx.arc(54+22*t+wob,0,6+5*t,0,Math.PI*2);ctx.fill();}
-  else {ctx.font='28px serif';ctx.fillText(w.glyph,26,8);} 
-  ctx.restore();
+function trig(){if(state.mouse.down)return; state.mouse.down=true; state.mouse.held=0; if(weaponDef().kind==='swing')state.player.swing=1;}
+function rel(){if(!state.mouse.down)return; state.mouse.down=false; if(['bow','sling','cannon'].includes(weaponDef().id)||weaponDef().kind==='bow')fireCharge();}
+function loop(ts){if(!state.last)state.last=ts;const dt=Math.min(0.033,(ts-state.last)/1000);state.last=ts;const p=state.player;p.lastX=p.x;p.lastY=p.y;update(dt);render();requestAnimationFrame(loop);} 
 
-  const z=getZone(state.player.x,state.player.y); const dx=state.player.x-MAP_CENTER.x,dy=state.player.y-MAP_CENTER.y; const radius=(Math.hypot(dx,dy)/(5*CELL*WORLD_SCALE)).toFixed(2); const clock=wrap12((Math.atan2(dy,dx)*6/Math.PI)+3).toFixed(2);
-  ui.innerHTML=`HP ${state.player.hp.toFixed(1)}<br>Zone: ${z.name}<br>R: ${radius} · Clock12: ${clock}<br>Weapon: ${weaponDef().id}<br>Unlocked: ${[...state.player.unlocked].join(', ')}<br><button onclick="resetWorld()">Reset World</button>`;
-}
-
-function loop(ts){if(!state.last)state.last=ts; const dt=Math.min(0.033,(ts-state.last)/1000); state.last=ts; const p=state.player; p.lastX=p.x;p.lastY=p.y; update(dt); render(); requestAnimationFrame(loop);} resize(); resetWorld(); requestAnimationFrame(loop);
+addEventListener('resize',()=>{canvas.width=innerWidth*devicePixelRatio;canvas.height=innerHeight*devicePixelRatio;ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);});
+addEventListener('keydown',e=>{const k=e.key.toLowerCase();state.keys.add(k); if(k===' ')trig(); if(k==='r')resetWorld(); if(k==='m')state.mount=(state.mount==='horse'?'foot':'horse'); if(/[1-7]/.test(e.key)){const w=weapons[Number(e.key)-1]; if(state.player.unlocked.has(w.id))state.player.weapon=w.id;}});
+addEventListener('keyup',e=>{state.keys.delete(e.key.toLowerCase()); if(e.key===' ')rel();});
+canvas.addEventListener('mousemove',e=>{state.mouse.x=e.clientX;state.mouse.y=e.clientY;});
+canvas.addEventListener('mousedown',trig); addEventListener('mouseup',rel);
+canvas.width=innerWidth*devicePixelRatio;canvas.height=innerHeight*devicePixelRatio;ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+resetWorld(); requestAnimationFrame(loop);
