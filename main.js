@@ -61,7 +61,7 @@ function dbg(msg){ state.debug.push(msg); if(state.debug.length>28) state.debug.
 
 function update(dt){const p=state.player; let dx=(state.keys.has('d')?1:0)-(state.keys.has('a')?1:0),dy=(state.keys.has('s')?1:0)-(state.keys.has('w')?1:0); const m=Math.hypot(dx,dy)||1;dx/=m;dy/=m;
   const zone=getZone(p.x,p.y), flow=riverPushAt(p.x,p.y); const horseEq=state.mount==='horse'&&p.unlocked.has('horse'); const speed=horseEq?1.5:1,accel=horseEq?3.2:7.5;
-  const baseSpeed = (4 * RADIUS_UNIT) / 60; // 4 radii per minute
+  const baseSpeed = (8 * RADIUS_UNIT) / 60; // 8 radii per minute
   const tvx=dx*baseSpeed*speed*flow.slow,tvy=dy*baseSpeed*speed*flow.slow; p.vx+=(tvx-p.vx)*Math.min(1,accel*dt); p.vy+=(tvy-p.vy)*Math.min(1,accel*dt);
   const nx=p.x+(p.vx+flow.x)*dt, ny=p.y+(p.vy+flow.y)*dt; const block=collidesTree(nx,ny); if(block){ if(block.stump){p.vx=0;p.vy=0;} } else {p.x=nx;p.y=ny;}
   const rr=Math.hypot(p.x-MAP_CENTER.x,p.y-MAP_CENTER.y); if(rr>WORLD_MAX_R-20){const s=(WORLD_MAX_R-20)/rr;p.x=MAP_CENTER.x+(p.x-MAP_CENTER.x)*s;p.y=MAP_CENTER.y+(p.y-MAP_CENTER.y)*s;p.vx=0;p.vy=0;}
@@ -71,7 +71,7 @@ function update(dt){const p=state.player; let dx=(state.keys.has('d')?1:0)-(stat
   if(p.swing>0){p.swing-=dt*3;doSwingDamage();}
   for(const pr of state.projectiles){const nx=pr.x+pr.vx*dt,ny=pr.y+pr.vy*dt; if(collidesTree(nx,ny)&&!pr.overStump){pr.life=0;continue;} pr.x=nx;pr.y=ny;pr.life-=dt;}
   state.projectiles=state.projectiles.filter(pr=>pr.life>0);
-  for(const e of state.enemies){const ax=p.x-e.x,ay=p.y-e.y,d=Math.hypot(ax,ay)||1;e.x+=ax/d*80*dt;e.y+=ay/d*80*dt;if(d<20)p.hp=Math.max(0,p.hp-dt*2);} hitChecks();
+  for(const e of state.enemies){e.vx=(e.vx||0)*0.86; e.vy=(e.vy||0)*0.86; const ax=p.x-e.x,ay=p.y-e.y,d=Math.hypot(ax,ay)||1; e.vx += ax/d*40*dt; e.vy += ay/d*40*dt; e.x += e.vx*dt*30 + ax/d*50*dt; e.y += e.vy*dt*30 + ay/d*50*dt; if(d<20)p.hp=Math.max(0,p.hp-dt*2);} hitChecks();
   if(zone&&!state.enemies.some(e=>e.zone===zone.id&&e.hp>0)&&!state.waves[zone.id].cleared){state.waves[zone.id].cleared=true;if(zone.unlock)p.unlocked.add(zone.unlock);} }
 
 function applyHit(target, weapon, scale=1){
@@ -82,19 +82,21 @@ function applyHit(target, weapon, scale=1){
 }
 
 function doSwingDamage(){const p=state.player,w=weaponDef();if(w.kind!=='swing')return; const a=Math.atan2(state.mouse.y-innerHeight/2,state.mouse.x-innerWidth/2); const sx=p.x+Math.cos(a)*w.reach,sy=p.y+Math.sin(a)*w.reach;
- for(const e of state.enemies){if(Math.hypot(e.x-sx,e.y-sy)<45){const dmg=w.pierce*0.5+w.knock*0.25; e.hp-=dmg; dbg(`[SWING] ${w.id} -> enemy ${e.glyph} dmg=${dmg.toFixed(2)} hp=${e.hp.toFixed(2)} ang=${a.toFixed(2)}`);}}
+ const swingSpeed = Math.hypot(state.player.vx,state.player.vy) + Math.hypot(state.mouse.x-innerWidth/2,state.mouse.y-innerHeight/2)*0.002;
+ for(const e of state.enemies){if(Math.hypot(e.x-sx,e.y-sy)<45){const spMul=1+Math.min(2,swingSpeed/220); const dmg=(w.pierce*0.5+w.knock*0.25)*spMul; e.hp-=dmg; const kb=w.knock*spMul*22; e.vx=(e.vx||0)+Math.cos(a)*kb; e.vy=(e.vy||0)+Math.sin(a)*kb; dbg(`[SWING] ${w.id} -> enemy ${e.glyph} dmg=${dmg.toFixed(2)} kb=${kb.toFixed(1)} hp=${e.hp.toFixed(2)} ang=${a.toFixed(2)}`);}}
  for(const t of state.terrain){if(Math.hypot(t.x-sx,t.y-sy)<45)applyHit(t,w,1);} }
 
-function hitChecks(){for(const pr of state.projectiles){for(const e of state.enemies){if(Math.hypot(e.x-pr.x,e.y-pr.y)<22){const dmg=pr.pierce*0.6+pr.knock*0.4; e.hp-=dmg; dbg(`[HIT] ${pr.source||'proj'} -> enemy ${e.glyph} dmg=${dmg.toFixed(2)} hp=${e.hp.toFixed(2)} ang=${pr.angle.toFixed(2)} spd=${pr.speed.toFixed(1)}`); pr.life=0;}} for(const t of state.terrain){if(Math.hypot(t.x-pr.x,t.y-pr.y)<22){applyHit(t,{knock:pr.knock,pierce:pr.pierce},1); dbg(`[IMPACT] ${pr.source||'proj'} -> ${t.type}${t.stump?'(stump)':''} hp=${t.hp.toFixed(2)} k=${pr.knock.toFixed(2)} p=${pr.pierce.toFixed(2)}`); pr.life=0;}}} state.enemies=state.enemies.filter(e=>e.hp>0);} 
+function hitChecks(){for(const pr of state.projectiles){for(const e of state.enemies){if(Math.hypot(e.x-pr.x,e.y-pr.y)<22){const spMul=1+Math.min(3,pr.speed/320); const dmg=(pr.pierce*0.6+pr.knock*0.4)*spMul; e.hp-=dmg; const kb=pr.knock*spMul*26; const aa=Math.atan2(pr.vy,pr.vx); e.vx=(e.vx||0)+Math.cos(aa)*kb; e.vy=(e.vy||0)+Math.sin(aa)*kb; dbg(`[HIT] ${pr.source||'proj'} -> enemy ${e.glyph} dmg=${dmg.toFixed(2)} kb=${kb.toFixed(1)} hp=${e.hp.toFixed(2)} ang=${pr.angle.toFixed(2)} spd=${pr.speed.toFixed(1)}`); pr.life=0;}} for(const t of state.terrain){if(Math.hypot(t.x-pr.x,t.y-pr.y)<22){applyHit(t,{knock:pr.knock,pierce:pr.pierce},1); dbg(`[IMPACT] ${pr.source||'proj'} -> ${t.type}${t.stump?'(stump)':''} hp=${t.hp.toFixed(2)} k=${pr.knock.toFixed(2)} p=${pr.pierce.toFixed(2)}`); pr.life=0;}}} state.enemies=state.enemies.filter(e=>e.hp>0);} 
 
 function fireCharge(){const w=weaponDef(); const h=Math.min(1,state.mouse.held/1.5),p=state.player,a=Math.atan2(state.mouse.y-innerHeight/2,state.mouse.x-innerWidth/2),sp=240+h*460;
  let glyph='●',size=12,knock=w.knock,pierce=w.pierce;
  if(w.id==='bow'){glyph='➳';size=22;} if(w.id==='ballista'){glyph='➳';size=34;} if(w.id==='cannon'){glyph='●';size=28;knock=13;pierce=2.2;} if(w.id==='sling'){glyph='●';size=12;knock=7.5;pierce=0.5;}
- state.projectiles.push({x:p.x+Math.cos(a)*24,y:p.y+Math.sin(a)*24,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:2.2,glyph,size,knock,pierce,angle:a,speed:sp,source:w.id});
+ const pvx = Math.cos(a)*sp + p.vx; const pvy = Math.sin(a)*sp + p.vy; const pspd=Math.hypot(pvx,pvy);
+ state.projectiles.push({x:p.x+Math.cos(a)*24,y:p.y+Math.sin(a)*24,vx:pvx,vy:pvy,life:2.2,glyph,size,knock,pierce,angle:a,speed:pspd,source:w.id});
   dbg(`[FIRE] ${w.id} ang=${a.toFixed(2)} spd=${sp.toFixed(1)} knock=${knock.toFixed(2)} pierce=${pierce.toFixed(2)}`); }
 
 function hex(x,y,r){ctx.beginPath();for(let i=0;i<6;i++){const a=Math.PI/3*i+Math.PI/6,px=x+Math.cos(a)*r,py=y+Math.sin(a)*r;i?ctx.lineTo(px,py):ctx.moveTo(px,py);}ctx.closePath();}
-function drawHexBackground(){const size=12,pack=0.9,h=Math.sqrt(3)*size*pack,v=1.5*size*pack,worldW=innerWidth*1.3,worldH=innerHeight*1.3; const r0=Math.floor((state.camera.y-worldH*0.5)/v)-2,r1=Math.ceil((state.camera.y+worldH*0.5)/v)+2,c0=Math.floor((state.camera.x-worldW*0.5)/h)-2,c1=Math.ceil((state.camera.x+worldW*0.5)/h)+2; for(let row=r0;row<=r1;row++){for(let col=c0;col<=c1;col++){const wx=col*h+(row%2?h/2:0),wy=row*v,p=projectWorld(wx,wy); if(p.x<-8||p.x>innerWidth+8||p.y<-8||p.y>innerHeight+8)continue; let z=getZone(wx,wy); if(!z) z=zones[0]; const q=col-((row-(row&1))>>1),idx=((q-row)%3+3)%3; ctx.fillStyle=z.palette[idx]; hex(p.x,p.y,size); ctx.fill();}}}
+function drawHexBackground(){const size=12,pack=1.08,h=Math.sqrt(3)*size*pack,v=1.5*size*pack,worldW=innerWidth*1.3,worldH=innerHeight*1.3; const r0=Math.floor((state.camera.y-worldH*0.5)/v)-2,r1=Math.ceil((state.camera.y+worldH*0.5)/v)+2,c0=Math.floor((state.camera.x-worldW*0.5)/h)-2,c1=Math.ceil((state.camera.x+worldW*0.5)/h)+2; for(let row=r0;row<=r1;row++){for(let col=c0;col<=c1;col++){const wx=col*h+(row%2?h/2:0),wy=row*v,p=projectWorld(wx,wy); if(p.x<-8||p.x>innerWidth+8||p.y<-8||p.y>innerHeight+8)continue; let z=getZone(wx,wy); if(!z) z=zones[0]; const q=col-((row-(row&1))>>1),idx=((q-row)%3+3)%3; ctx.fillStyle=z.palette[idx]; hex(p.x,p.y,size); ctx.fill();}}}
 function drawRiver(){const seg=[]; for(let h=11;h<=12;h+=0.08){const th=(h-3)*Math.PI/6,r=3*5*CELL*WORLD_SCALE;seg.push(projectWorld(MAP_CENTER.x+Math.cos(th)*r,MAP_CENTER.y+Math.sin(th)*r));} for(let h=0;h<=4.2;h+=0.08){const th=(h-3)*Math.PI/6,r=3*5*CELL*WORLD_SCALE;seg.push(projectWorld(MAP_CENTER.x+Math.cos(th)*r,MAP_CENTER.y+Math.sin(th)*r));} ctx.strokeStyle='#6ad7ffcc';ctx.lineWidth=42;ctx.lineCap='round';ctx.beginPath(); seg.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)); ctx.stroke();}
 
 function render(){ctx.clearRect(0,0,innerWidth,innerHeight); drawHexBackground(); drawRiver();
