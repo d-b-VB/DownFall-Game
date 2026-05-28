@@ -39,7 +39,7 @@ const zones = [
 ];
 
 const state = { t:0,last:0,keys:new Set(),mouse:{x:0,y:0,down:false,held:0},camera:{x:MAP_CENTER.x,y:MAP_CENTER.y},player:null,projectiles:[],enemies:[],terrain:[],waves:{},mount:'foot',debug:[],diamonds:0,meta:{},pendingReward:null,offerNpc:null,currentZone:null,run:1 };
-const BUILD_VERSION = 'v0.1.3 build 2026-05-28 20:50 UTC';
+const BUILD_VERSION = 'v0.1.4 build 2026-05-28 23:54 UTC';
 const wrap12=h=>(h%12+12)%12; const inArc=(h,[s,e])=>{h=wrap12(h);s=wrap12(s);e=wrap12(e);return s<=e?(h>=s&&h<e):(h>=s||h<e)}; const toClockHour=t=>wrap12((t*6/Math.PI)+3);
 const weaponDef=()=>weapons.find(w=>w.id===state.player.weapon);
 const MINOR_ZONES = new Set(['tundra','marsh','desert','mine']);
@@ -137,11 +137,13 @@ function trig(){if(state.mouse.down)return; state.mouse.down=true; state.mouse.h
 function rel(){if(!state.mouse.down)return; state.mouse.down=false; if(['bow','sling','cannon'].includes(weaponDef().id)||weaponDef().kind==='bow')fireCharge();}
 function loop(ts){if(!state.last)state.last=ts;const dt=Math.min(0.033,(ts-state.last)/1000);state.last=ts;const p=state.player;p.lastX=p.x;p.lastY=p.y;update(dt);render();requestAnimationFrame(loop);}
 
-ui.addEventListener('click',e=>{const reward=e.target.closest('[data-reward-index]'); if(reward){e.preventDefault();e.stopPropagation();chooseReward(Number(reward.dataset.rewardIndex));return;} if(e.target.closest('[data-reset-world]')){e.preventDefault();e.stopPropagation();resetWorld();}});
+function handleUiAction(e){const reward=e.target.closest('[data-reward-index]'); if(reward){e.preventDefault();e.stopPropagation();chooseReward(Number(reward.dataset.rewardIndex));return true;} if(e.target.closest('[data-reset-world]')){e.preventDefault();e.stopPropagation();resetWorld();return true;} return false;}
+ui.addEventListener('pointerdown',e=>{handleUiAction(e)||e.stopPropagation();});
+ui.addEventListener('click',e=>{handleUiAction(e)||e.stopPropagation();});
 ui.addEventListener('mousedown',e=>e.stopPropagation());
 ui.addEventListener('mouseup',e=>e.stopPropagation());
 addEventListener('resize',()=>{canvas.width=innerWidth*devicePixelRatio;canvas.height=innerHeight*devicePixelRatio;ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);});
-addEventListener('keydown',e=>{const k=e.key.toLowerCase();state.keys.add(k); if(k===' ')trig(); if(k==='r')resetWorld(); if(k==='m')state.mount=(state.mount==='horse'?'foot':'horse'); if(/[1-7]/.test(e.key)){const w=weapons[Number(e.key)-1]; if(state.player.unlocked.has(w.id))state.player.weapon=w.id;}});
+addEventListener('keydown',e=>{const k=e.key.toLowerCase();state.keys.add(k); if(state.pendingReward&&/[1-3]/.test(e.key)){chooseReward(Number(e.key)-1);return;} if(k===' ')trig(); if(k==='r')resetWorld(); if(k==='m')state.mount=(state.mount==='horse'?'foot':'horse'); if(/[1-7]/.test(e.key)){const w=weapons[Number(e.key)-1]; if(state.player.unlocked.has(w.id))state.player.weapon=w.id;}});
 addEventListener('keyup',e=>{state.keys.delete(e.key.toLowerCase()); if(e.key===' ')rel();});
 canvas.addEventListener('mousemove',e=>{state.mouse.x=e.clientX;state.mouse.y=e.clientY;});
 canvas.addEventListener('mousedown',trig); addEventListener('mouseup',rel);
