@@ -1,6 +1,7 @@
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const ui = document.getElementById('ui');
+const menu = document.getElementById('menu');
 
 const CELL = 48;
 const WORLD_SCALE = 4;
@@ -18,6 +19,10 @@ const weapons = [
   { id: 'ballista', glyph: 'ballista', kind: 'bow', knock: 5.5, pierce: 11, reach: 520 },
   { id: 'cannon', glyph: 'cannon', kind: 'cannon', knock: 12, pierce: 2, reach: 560 },
 ];
+
+const weaponGlyphPoints = Object.fromEntries(weapons.map(w=>[w.id,{handleCell:null,tipCell:null}]));
+const glyphRows = 'ABCDEFGHIJK'.split('');
+const glyphCols = Array.from({length:12},(_,i)=>String(i+1));
 
 const zones = [
   { id: 'orchard', name: 'Club Orchard', palette: ['#245e3a','#2e7548','#3f8d59'], enemy: '🐗', unlock: 'club', ring: ring(0,1), arc:[0,12], deco:'orchard' },
@@ -38,8 +43,8 @@ const zones = [
   { id: 'foundry', name: 'Foundry/Monastery', palette: ['#5e4339','#7a5a4f','#a37d6b'], enemy: '👹', unlock: 'cannon', ring: ring(4,5), arc:[8,10], deco:'foundry' },
 ];
 
-const state = { t:0,last:0,keys:new Set(),mouse:{x:0,y:0,down:false,held:0},camera:{x:MAP_CENTER.x,y:MAP_CENTER.y},player:null,projectiles:[],enemies:[],terrain:[],waves:{},mount:'foot',debug:[],diamonds:0,meta:{},pendingReward:null,offerNpc:null,currentZone:null,run:1 };
-const BUILD_VERSION = 'v0.1.4 build 2026-05-28 23:54 UTC';
+const state = { mode:'menu',glyphWeapon:'club',t:0,last:0,keys:new Set(),mouse:{x:0,y:0,down:false,held:0},camera:{x:MAP_CENTER.x,y:MAP_CENTER.y},player:null,projectiles:[],enemies:[],terrain:[],waves:{},mount:'foot',debug:[],diamonds:0,meta:{},pendingReward:null,offerNpc:null,currentZone:null,run:1 };
+const BUILD_VERSION = 'v0.1.5 build 2026-05-29 00:00 UTC';
 const wrap12=h=>(h%12+12)%12; const inArc=(h,[s,e])=>{h=wrap12(h);s=wrap12(s);e=wrap12(e);return s<=e?(h>=s&&h<e):(h>=s||h<e)}; const toClockHour=t=>wrap12((t*6/Math.PI)+3);
 const weaponDef=()=>weapons.find(w=>w.id===state.player.weapon);
 const MINOR_ZONES = new Set(['tundra','marsh','desert','mine']);
@@ -113,6 +118,34 @@ function hex(x,y,r){ctx.beginPath();for(let i=0;i<6;i++){const a=Math.PI/3*i+Mat
 function drawHexBackground(){const size=12,pack=1.34,h=Math.sqrt(3)*size*pack,v=1.5*size*pack,worldW=innerWidth*1.3,worldH=innerHeight*1.3; const r0=Math.floor((state.camera.y-worldH*0.5)/v)-2,r1=Math.ceil((state.camera.y+worldH*0.5)/v)+2,c0=Math.floor((state.camera.x-worldW*0.5)/h)-2,c1=Math.ceil((state.camera.x+worldW*0.5)/h)+2; for(let row=r0;row<=r1;row++){for(let col=c0;col<=c1;col++){const wx=col*h+(row%2?h/2:0),wy=row*v,p=projectWorld(wx,wy); if(p.x<-8||p.x>innerWidth+8||p.y<-8||p.y>innerHeight+8)continue; let z=getZone(wx,wy); if(!z) z=zones[0]; const q=col-((row-(row&1))>>1),idx=((q-row)%3+3)%3; ctx.fillStyle=z.palette[idx]; hex(p.x,p.y,size); ctx.fill();}}}
 function drawRiver(){const seg=[]; for(let h=11;h<=12;h+=0.08){const th=(h-3)*Math.PI/6,r=3*5*CELL*WORLD_SCALE;seg.push(projectWorld(MAP_CENTER.x+Math.cos(th)*r,MAP_CENTER.y+Math.sin(th)*r));} for(let h=0;h<=4.2;h+=0.08){const th=(h-3)*Math.PI/6,r=3*5*CELL*WORLD_SCALE;seg.push(projectWorld(MAP_CENTER.x+Math.cos(th)*r,MAP_CENTER.y+Math.sin(th)*r));} ctx.strokeStyle='#6ad7ffcc';ctx.lineWidth=42;ctx.lineCap='round';ctx.beginPath(); seg.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)); ctx.stroke();}
 
+
+function drawWeaponVisual(w){
+  if(w.id==='club'){ctx.strokeStyle='#6f3f1f';ctx.lineWidth=10;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(-44,0);ctx.lineTo(46,0);ctx.stroke();return;}
+  if(w.id==='ballista'){ctx.font='58px serif';ctx.fillText('🏹',-42,18);ctx.font='38px serif';ctx.fillText('⚙️',-5,20);return;}
+  if(w.id==='cannon'){ctx.save();ctx.rotate(-Math.PI/2);ctx.scale(0.65,1.2);ctx.font='66px serif';ctx.fillText('🔔',-34,20);ctx.restore();return;}
+  ctx.font='64px serif';ctx.fillText(w.glyph,-34,22);
+}
+
+function renderGlyphTest(){
+  ctx.clearRect(0,0,innerWidth,innerHeight);
+  ctx.fillStyle='#111';ctx.fillRect(0,0,innerWidth,innerHeight);
+  const cell=Math.max(34,Math.min(58,(Math.min(innerWidth-260,innerHeight-160))/12));
+  const gridW=cell*12, gridH=cell*11, left=(innerWidth-gridW)/2, top=(innerHeight-gridH)/2+25;
+  ctx.fillStyle='#d9e8df';ctx.font='16px monospace';ctx.fillText('Glyph Test: choose a weapon, then report handle and tip cells (example: handle C4, tip C9).',24,30);
+  ctx.fillText(`Selected: ${state.glyphWeapon}`,24,54);
+  ctx.strokeStyle='#3d5548';ctx.lineWidth=1;
+  for(let c=0;c<=12;c++){ctx.beginPath();ctx.moveTo(left+c*cell,top);ctx.lineTo(left+c*cell,top+gridH);ctx.stroke();}
+  for(let r=0;r<=11;r++){ctx.beginPath();ctx.moveTo(left,top+r*cell);ctx.lineTo(left+gridW,top+r*cell);ctx.stroke();}
+  ctx.fillStyle='#9fd7b5';ctx.font='14px monospace';
+  glyphCols.forEach((label,i)=>ctx.fillText(label,left+i*cell+cell/2-4,top-10));
+  glyphRows.forEach((label,i)=>ctx.fillText(label,left-24,top+i*cell+cell/2+5));
+  const selected=weapons.find(w=>w.id===state.glyphWeapon)||weapons[0];
+  ctx.save();ctx.translate(left+gridW/2,top+gridH/2);drawWeaponVisual(selected);ctx.restore();
+  const points=weaponGlyphPoints[selected.id];
+  ctx.fillStyle='#f5d76e';ctx.font='14px monospace';ctx.fillText(`Handle: ${points.handleCell||'unassigned'}   Tip: ${points.tipCell||'unassigned'}`,24,78);
+  ui.innerHTML=`Mode: Glyph Test<br>${weapons.map(w=>`<button type="button" data-glyph-weapon="${w.id}">${w.id}</button>`).join(' ')}<br><button type="button" data-mode="game">Play Game</button><button type="button" data-mode="menu">Menu</button>`;
+}
+
 function render(){ctx.clearRect(0,0,innerWidth,innerHeight); drawHexBackground(); drawRiver();
   const wps=[
     {id:'volcano',glyph:'🌋',h:7.5,r:3.8*RADIUS_UNIT,color:'#fff'},
@@ -135,17 +168,19 @@ function render(){ctx.clearRect(0,0,innerWidth,innerHeight); drawHexBackground()
 
 function trig(){if(state.mouse.down)return; state.mouse.down=true; state.mouse.held=0; if(weaponDef().kind==='swing')state.player.swing=1;}
 function rel(){if(!state.mouse.down)return; state.mouse.down=false; if(['bow','sling','cannon'].includes(weaponDef().id)||weaponDef().kind==='bow')fireCharge();}
-function loop(ts){if(!state.last)state.last=ts;const dt=Math.min(0.033,(ts-state.last)/1000);state.last=ts;const p=state.player;p.lastX=p.x;p.lastY=p.y;update(dt);render();requestAnimationFrame(loop);}
+function loop(ts){if(!state.last)state.last=ts;const dt=Math.min(0.033,(ts-state.last)/1000);state.last=ts;if(state.mode==='game'){const p=state.player;p.lastX=p.x;p.lastY=p.y;update(dt);render();}else if(state.mode==='glyph'){renderGlyphTest();}requestAnimationFrame(loop);}
 
-function handleUiAction(e){const reward=e.target.closest('[data-reward-index]'); if(reward){e.preventDefault();e.stopPropagation();chooseReward(Number(reward.dataset.rewardIndex));return true;} if(e.target.closest('[data-reset-world]')){e.preventDefault();e.stopPropagation();resetWorld();return true;} return false;}
+function setMode(mode){state.mode=mode;menu.classList.toggle('hidden',mode!=='menu');ui.style.display=mode==='menu'?'none':'block';if(mode==='game'&&!state.player)resetWorld();if(mode==='glyph')menu.classList.add('hidden');}
+menu.addEventListener('click',e=>{const mode=e.target.closest('[data-mode]')?.dataset.mode;if(mode)setMode(mode);});
+function handleUiAction(e){const mode=e.target.closest('[data-mode]')?.dataset.mode; if(mode){e.preventDefault();e.stopPropagation();setMode(mode);return true;} const glyph=e.target.closest('[data-glyph-weapon]')?.dataset.glyphWeapon; if(glyph){e.preventDefault();e.stopPropagation();state.glyphWeapon=glyph;return true;} const reward=e.target.closest('[data-reward-index]'); if(reward){e.preventDefault();e.stopPropagation();chooseReward(Number(reward.dataset.rewardIndex));return true;} if(e.target.closest('[data-reset-world]')){e.preventDefault();e.stopPropagation();resetWorld();return true;} return false;}
 ui.addEventListener('pointerdown',e=>{handleUiAction(e)||e.stopPropagation();});
 ui.addEventListener('click',e=>{handleUiAction(e)||e.stopPropagation();});
 ui.addEventListener('mousedown',e=>e.stopPropagation());
 ui.addEventListener('mouseup',e=>e.stopPropagation());
 addEventListener('resize',()=>{canvas.width=innerWidth*devicePixelRatio;canvas.height=innerHeight*devicePixelRatio;ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);});
-addEventListener('keydown',e=>{const k=e.key.toLowerCase();state.keys.add(k); if(state.pendingReward&&/[1-3]/.test(e.key)){chooseReward(Number(e.key)-1);return;} if(k===' ')trig(); if(k==='r')resetWorld(); if(k==='m')state.mount=(state.mount==='horse'?'foot':'horse'); if(/[1-7]/.test(e.key)){const w=weapons[Number(e.key)-1]; if(state.player.unlocked.has(w.id))state.player.weapon=w.id;}});
-addEventListener('keyup',e=>{state.keys.delete(e.key.toLowerCase()); if(e.key===' ')rel();});
+addEventListener('keydown',e=>{const k=e.key.toLowerCase(); if(k==='escape'){setMode('menu');return;} if(state.mode!=='game')return; state.keys.add(k); if(state.pendingReward&&/[1-3]/.test(e.key)){chooseReward(Number(e.key)-1);return;} if(k===' ')trig(); if(k==='r')resetWorld(); if(k==='m')state.mount=(state.mount==='horse'?'foot':'horse'); if(/[1-7]/.test(e.key)){const w=weapons[Number(e.key)-1]; if(state.player.unlocked.has(w.id))state.player.weapon=w.id;}});
+addEventListener('keyup',e=>{if(state.mode!=='game')return; state.keys.delete(e.key.toLowerCase()); if(e.key===' ')rel();});
 canvas.addEventListener('mousemove',e=>{state.mouse.x=e.clientX;state.mouse.y=e.clientY;});
-canvas.addEventListener('mousedown',trig); addEventListener('mouseup',rel);
+canvas.addEventListener('mousedown',()=>{if(state.mode==='game')trig();}); addEventListener('mouseup',()=>{if(state.mode==='game')rel();});
 canvas.width=innerWidth*devicePixelRatio;canvas.height=innerHeight*devicePixelRatio;ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
-resetWorld(); requestAnimationFrame(loop);
+ui.style.display='none'; resetWorld(); requestAnimationFrame(loop);
