@@ -28,7 +28,7 @@ const glyphTests = [...weapons.map(w=>w.id),'fire','poison','ice','arrow1','arro
 const zones = [
   { id: 'orchard', name: 'Club Orchard', palette: ['#245e3a','#2e7548','#3f8d59'], enemy: '🐛', unlock: 'club', ring: ring(0,1), arc:[0,12], deco:'orchard' },
   { id: 'axe', name: 'Axe Grove', palette: ['#2f612f','#3b7c3a','#5b8f4f'], enemy: '🦂', unlock: 'axe', ring: ring(1,2), arc:[9,3], deco:'axe_grove' },
-  { id: 'creek', name: 'Sling Creekside', palette: ['#2a5f79','#3e89a8','#78b8d4'], enemy: '🐸', unlock: 'sling', ring: ring(1,2), arc:[3,12], slowWater:true, deco:'creek' },
+  { id: 'creek', name: 'Sling Creekside', palette: ['#9fd7ef','#cfd6da','#4b5660'], enemy: '🐸', unlock: 'sling', ring: ring(1,2), arc:[3,12], slowWater:true, deco:'creek' },
   { id: 'pasture', name: 'Pasture', palette: ['#6d8f4b','#92b862','#c0d98a'], enemy: '🐺', unlock: 'horse', ring: ring(2,3), arc:[3,7], deco:'pasture' },
   { id: 'smith', name: 'Smith Town', palette: ['#7a5a48','#9a7358','#ba8a6a'], enemy: '🛡️', unlock: 'sword', ring: ring(2,3), arc:[7,11], deco:'smith' },
   { id: 'fletcher', name: 'Fletcher Village', palette: ['#5a7a3f','#7da85b','#b8d685'], enemy: '🦅', unlock: 'bow', ring: ring(2,3), arc:[11,3], deco:'fletcher' },
@@ -45,14 +45,14 @@ const zones = [
 ];
 
 const state = { mode:'menu',glyphWeapon:'club',t:0,last:0,keys:new Set(),mouse:{x:0,y:0,down:false,held:0},camera:{x:MAP_CENTER.x,y:MAP_CENTER.y},player:null,projectiles:[],enemies:[],terrain:[],waves:{},mount:'foot',debug:[],diamonds:0,ammo:{arrows:0,jars:0},meta:{},pendingReward:null,offerNpc:null,currentZone:null,run:1 };
-const BUILD_VERSION = 'v0.1.8 build 2026-05-30 00:00 UTC';
-const wrap12=h=>(h%12+12)%12; const inArc=(h,[s,e])=>{h=wrap12(h);s=wrap12(s);e=wrap12(e);return s<=e?(h>=s&&h<e):(h>=s||h<e)}; const toClockHour=t=>wrap12((t*6/Math.PI)+3);
+const BUILD_VERSION = 'v0.1.9 build 2026-05-30 00:00 UTC';
+const wrap12=h=>(h%12+12)%12; const inArc=(h,[s,e])=>{h=wrap12(h);s=wrap12(s);e=wrap12(e);if(s===e)return true;return s<=e?(h>=s&&h<e):(h>=s||h<e)}; const toClockHour=t=>wrap12((t*6/Math.PI)+3);
 const weaponDef=()=>weapons.find(w=>w.id===state.player.weapon);
 const MINOR_ZONES = new Set(['tundra','marsh','desert','mine']);
 const UPGRADE_STATS = ['speed','range','damage','knockback'];
-const upgradeStatsFor=id=>id==='horse'?['speed']:UPGRADE_STATS;
+const upgradeStatsFor=id=>id==='horse'?['speed','accel']:UPGRADE_STATS;
 const ZONE_NPCS = {orchard:'👨‍🌾',creek:'🧒',axe:'🧔',pasture:'🐎',smith:'🛡️',fletcher:'🏹',sawmill:'🪚',marches:'♜',volcano:'🧙‍♂️',frost:'🧪',swamp:'🧙‍♀️',foundry:'🙏'};
-function metaFor(id){ if(!state.meta[id]) state.meta[id]={speed:0,range:0,damage:0,knockback:0}; return state.meta[id]; }
+function metaFor(id){ if(!state.meta[id]) state.meta[id]={speed:0,range:0,damage:0,knockback:0,accel:0}; return state.meta[id]; }
 function effectiveWeapon(base){ const m=metaFor(base.id); return {...base, knock:base.knock+m.knockback*0.6, reach:base.reach+m.range*16, damageMult:1+m.damage*0.13, speedMult:1+m.speed*0.08, tiers:m}; }
 function rewardWeaponForZone(zone){ return zone.unlock || state.player.weapon; }
 function unlockCost(zone){return zone.id==='orchard'?0:8;} function upgradeCost(wave){return 5+wave*3;}
@@ -85,8 +85,8 @@ function collidesTree(x,y){return collidesObstacle(x,y);}
 function dbg(msg){ state.debug.push(msg); if(state.debug.length>28) state.debug.shift(); }
 
 function update(dt){const p=state.player; let dx=(state.keys.has('d')?1:0)-(state.keys.has('a')?1:0),dy=(state.keys.has('s')?1:0)-(state.keys.has('w')?1:0); const m=Math.hypot(dx,dy)||1;dx/=m;dy/=m;
-  const zone=getZone(p.x,p.y), flow=riverPushAt(p.x,p.y); if(zone?.id!==state.currentZone){state.currentZone=zone?.id||null; if(zone)dbg(`[ZONE] entered ${zone.name} wave=${state.waves[zone.id]?.wave||1} spawned=${!!state.waves[zone.id]?.spawned}`);} const horseEq=state.mount==='horse'&&p.unlocked.has('horse'); const horse=metaFor('horse'); const speed=horseEq?1.5+horse.speed*0.08:1,accel=horseEq?3.2+horse.range*0.15:7.5;
-  const baseSpeed = (8 * RADIUS_UNIT) / 60; // 8 radii per minute
+  const zone=getZone(p.x,p.y), flow=riverPushAt(p.x,p.y); if(zone?.id!==state.currentZone){state.currentZone=zone?.id||null; if(zone)dbg(`[ZONE] entered ${zone.name} wave=${state.waves[zone.id]?.wave||1} spawned=${!!state.waves[zone.id]?.spawned}`);} const horseEq=state.mount==='horse'&&p.unlocked.has('horse'); const horse=metaFor('horse'); const speed=horseEq?2.25+horse.speed*0.12:1,accel=horseEq?4.8+horse.accel*0.4:7.5;
+  const baseSpeed = (12 * RADIUS_UNIT) / 60; // 12 radii per minute
   const tvx=dx*baseSpeed*speed*flow.slow,tvy=dy*baseSpeed*speed*flow.slow; p.vx+=(tvx-p.vx)*Math.min(1,accel*dt); p.vy+=(tvy-p.vy)*Math.min(1,accel*dt);
   const nx=p.x+(p.vx+flow.x)*dt, ny=p.y+(p.vy+flow.y)*dt; const block=collidesObstacle(nx,ny); if(block){ if(block.stump){p.vx*=0.35;p.vy*=0.35;p.x=nx;p.y=ny;} } else {p.x=nx;p.y=ny;}
   const rr=Math.hypot(p.x-MAP_CENTER.x,p.y-MAP_CENTER.y); if(rr>WORLD_MAX_R-20){const s=(WORLD_MAX_R-20)/rr;p.x=MAP_CENTER.x+(p.x-MAP_CENTER.x)*s;p.y=MAP_CENTER.y+(p.y-MAP_CENTER.y)*s;p.vx=0;p.vy=0;}
@@ -126,11 +126,12 @@ function fireCharge(){const w=effectiveWeapon(weaponDef()); const h=Math.min(1,s
 function hex(x,y,r){ctx.beginPath();for(let i=0;i<6;i++){const a=Math.PI/3*i+Math.PI/6,px=x+Math.cos(a)*r,py=y+Math.sin(a)*r;i?ctx.lineTo(px,py):ctx.moveTo(px,py);}ctx.closePath();}
 function drawHexBackground(){const size=12,pack=1.34,h=Math.sqrt(3)*size*pack,v=1.5*size*pack,worldW=innerWidth*1.3,worldH=innerHeight*1.3; const r0=Math.floor((state.camera.y-worldH*0.5)/v)-2,r1=Math.ceil((state.camera.y+worldH*0.5)/v)+2,c0=Math.floor((state.camera.x-worldW*0.5)/h)-2,c1=Math.ceil((state.camera.x+worldW*0.5)/h)+2; for(let row=r0;row<=r1;row++){for(let col=c0;col<=c1;col++){const wx=col*h+(row%2?h/2:0),wy=row*v,p=projectWorld(wx,wy); if(p.x<-8||p.x>innerWidth+8||p.y<-8||p.y>innerHeight+8)continue; let z=getZone(wx,wy); if(!z) z=zones[0]; const q=col-((row-(row&1))>>1),idx=((q-row)%3+3)%3; ctx.fillStyle=z.palette[idx]; hex(p.x,p.y,size); ctx.fill();}}}
 function drawRiver(){const seg=[]; for(let h=11;h<=12;h+=0.08){const th=(h-3)*Math.PI/6,r=3*5*CELL*WORLD_SCALE;seg.push(projectWorld(MAP_CENTER.x+Math.cos(th)*r,MAP_CENTER.y+Math.sin(th)*r));} for(let h=0;h<=4.2;h+=0.08){const th=(h-3)*Math.PI/6,r=3*5*CELL*WORLD_SCALE;seg.push(projectWorld(MAP_CENTER.x+Math.cos(th)*r,MAP_CENTER.y+Math.sin(th)*r));} ctx.strokeStyle='#6ad7ffcc';ctx.lineWidth=42;ctx.lineCap='round';ctx.beginPath(); seg.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)); ctx.stroke();}
+function drawSlingCreek(){const seg=[]; for(let h=3;h<=12;h+=0.08){const t=(h-3)/9,rr=1.5*RADIUS_UNIT+Math.sin(t*Math.PI*4)*0.22*RADIUS_UNIT,th=(h-3)*Math.PI/6;seg.push(projectWorld(MAP_CENTER.x+Math.cos(th)*rr,MAP_CENTER.y+Math.sin(th)*rr));} ctx.strokeStyle='#aee7ffcc';ctx.lineWidth=30;ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();seg.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.stroke();ctx.strokeStyle='#d7f4ff99';ctx.lineWidth=8;ctx.stroke();}
 
 
 function drawWeaponVisual(w, gridW=700, gridH=620, charge=1){
   ctx.textAlign='center';ctx.textBaseline='middle';
-  if(w.id==='club'){ctx.strokeStyle='#6f3f1f';ctx.lineWidth=Math.max(18,gridH*0.09);ctx.lineCap='round';ctx.beginPath();ctx.moveTo(-gridW*0.43,0);ctx.lineTo(gridW*0.43,0);ctx.stroke();return;}
+  if(w.id==='club'){ctx.strokeStyle='#6f3f1f';ctx.lineWidth=Math.max(3,gridH*0.045);ctx.lineCap='round';ctx.beginPath();ctx.moveTo(-gridW*0.43,0);ctx.lineTo(gridW*0.43,0);ctx.stroke();return;}
   if(w.id==='bow'||w.id==='ballista'){const sx=0.56+0.44*charge; ctx.save();ctx.scale(sx,1);ctx.font=`${Math.round(gridH*(w.id==='ballista'?0.82:0.9))}px serif`;ctx.fillText('🏹',0,0);ctx.restore(); if(w.id==='ballista'){ctx.font=`${Math.round(gridH*0.38)}px serif`;ctx.fillText('⚙️',gridW*0.12,gridH*0.08);}return;}
   if(w.id==='cannon'){ctx.save();ctx.rotate(-Math.PI/2);ctx.scale(0.65,1.2);ctx.font=`${Math.round(gridH*0.92)}px serif`;ctx.fillText('🔔',0,0);ctx.restore();return;}
   ctx.font=`${Math.round(gridH*0.9)}px serif`;ctx.fillText(w.glyph,0,0);
@@ -138,7 +139,7 @@ function drawWeaponVisual(w, gridW=700, gridH=620, charge=1){
 
 function drawSpecialGlyph(id, gridW, gridH){
   ctx.textAlign='center';ctx.textBaseline='middle';
-  if(id==='fire'){for(let i=0;i<2;i++){const tick=Math.floor(state.t*12+i)%7,ang=((tick*37)%40-20)*Math.PI/180,sx=0.75+((tick*13)%35)/100,sy=0.85+((tick*17)%45)/100;ctx.save();ctx.translate(i?gridW*0.03:-gridW*0.03,gridH*0.18);ctx.rotate(ang);ctx.scale(sx,sy);ctx.font=`${Math.round(gridH*0.78)}px serif`;ctx.fillText('🔥',0,0);ctx.restore();}return true;}
+  if(id==='fire'){for(let i=0;i<2;i++){const tick=Math.floor(state.t*12+i)%7,flip=(tick%2?1:-1),sx=flip*(0.75+((tick*13)%35)/100),sy=0.85+((tick*17)%45)/100;ctx.save();ctx.textBaseline='bottom';ctx.translate(i?gridW*0.025:-gridW*0.025,gridH*0.42);ctx.scale(sx,sy);ctx.font=`${Math.round(gridH*0.78)}px serif`;ctx.fillText('🔥',0,0);ctx.restore();}return true;}
   if(id==='poison'||id==='ice'){const glyph=id==='poison'?'☠️':'❄️';ctx.save();ctx.rotate(state.t*0.7);ctx.font=`${Math.round(gridH*0.86)}px serif`;ctx.fillText(glyph,0,0);ctx.restore();ctx.save();ctx.rotate(-state.t*0.95);ctx.scale(0.72,0.72);ctx.font=`${Math.round(gridH*0.86)}px serif`;ctx.fillText(glyph,0,0);ctx.restore();return true;}
   const arrows={arrow1:'➳',arrow2:'➵',arrow3:'➶',arrow4:'➴',arrow5:'➤'}; if(arrows[id]){ctx.font=`${Math.round(gridH*0.92)}px serif`;ctx.fillText(arrows[id],0,0);return true;} return false;
 }
@@ -168,7 +169,7 @@ function renderGlyphTest(){
   ui.innerHTML=`Mode: Glyph Test<br>${glyphTests.map(id=>`<button type="button" data-glyph-weapon="${id}">${id}</button>`).join(' ')}<br><button type="button" data-mode="game">Play Game</button><button type="button" data-mode="menu">Menu</button>`;
 }
 
-function render(){ctx.clearRect(0,0,innerWidth,innerHeight); drawHexBackground(); drawRiver();
+function render(){ctx.clearRect(0,0,innerWidth,innerHeight); drawHexBackground(); drawRiver(); drawSlingCreek();
   const wps=[
     {id:'volcano',glyph:'🌋',h:7.5,r:3.8*RADIUS_UNIT,color:'#fff'},
     {id:'frost',glyph:'🏔️',h:10.5,r:3.8*RADIUS_UNIT,color:'#fff'},
