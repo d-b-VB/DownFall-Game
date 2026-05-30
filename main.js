@@ -119,11 +119,12 @@ function drawHexBackground(){const size=12,pack=1.34,h=Math.sqrt(3)*size*pack,v=
 function drawRiver(){const seg=[]; for(let h=11;h<=12;h+=0.08){const th=(h-3)*Math.PI/6,r=3*5*CELL*WORLD_SCALE;seg.push(projectWorld(MAP_CENTER.x+Math.cos(th)*r,MAP_CENTER.y+Math.sin(th)*r));} for(let h=0;h<=4.2;h+=0.08){const th=(h-3)*Math.PI/6,r=3*5*CELL*WORLD_SCALE;seg.push(projectWorld(MAP_CENTER.x+Math.cos(th)*r,MAP_CENTER.y+Math.sin(th)*r));} ctx.strokeStyle='#6ad7ffcc';ctx.lineWidth=42;ctx.lineCap='round';ctx.beginPath(); seg.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)); ctx.stroke();}
 
 
-function drawWeaponVisual(w){
-  if(w.id==='club'){ctx.strokeStyle='#6f3f1f';ctx.lineWidth=10;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(-44,0);ctx.lineTo(46,0);ctx.stroke();return;}
-  if(w.id==='ballista'){ctx.font='58px serif';ctx.fillText('🏹',-42,18);ctx.font='38px serif';ctx.fillText('⚙️',-5,20);return;}
-  if(w.id==='cannon'){ctx.save();ctx.rotate(-Math.PI/2);ctx.scale(0.65,1.2);ctx.font='66px serif';ctx.fillText('🔔',-34,20);ctx.restore();return;}
-  ctx.font='64px serif';ctx.fillText(w.glyph,-34,22);
+function drawWeaponVisual(w, gridW=700, gridH=620){
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  if(w.id==='club'){ctx.strokeStyle='#6f3f1f';ctx.lineWidth=Math.max(18,gridH*0.09);ctx.lineCap='round';ctx.beginPath();ctx.moveTo(-gridW*0.43,0);ctx.lineTo(gridW*0.43,0);ctx.stroke();return;}
+  if(w.id==='ballista'){ctx.font=`${Math.round(gridH*0.82)}px serif`;ctx.fillText('🏹',-gridW*0.05,0);ctx.font=`${Math.round(gridH*0.38)}px serif`;ctx.fillText('⚙️',gridW*0.12,gridH*0.08);return;}
+  if(w.id==='cannon'){ctx.save();ctx.rotate(-Math.PI/2);ctx.scale(0.65,1.2);ctx.font=`${Math.round(gridH*0.92)}px serif`;ctx.fillText('🔔',0,0);ctx.restore();return;}
+  ctx.font=`${Math.round(gridH*0.9)}px serif`;ctx.fillText(w.glyph,0,0);
 }
 
 function renderGlyphTest(){
@@ -140,7 +141,7 @@ function renderGlyphTest(){
   glyphCols.forEach((label,i)=>ctx.fillText(label,left+i*cell+cell/2-4,top-10));
   glyphRows.forEach((label,i)=>ctx.fillText(label,left-24,top+i*cell+cell/2+5));
   const selected=weapons.find(w=>w.id===state.glyphWeapon)||weapons[0];
-  ctx.save();ctx.translate(left+gridW/2,top+gridH/2);drawWeaponVisual(selected);ctx.restore();
+  ctx.save();ctx.translate(left+gridW/2,top+gridH/2);drawWeaponVisual(selected,gridW,gridH);ctx.restore();
   const points=weaponGlyphPoints[selected.id];
   ctx.fillStyle='#f5d76e';ctx.font='14px monospace';ctx.fillText(`Handle: ${points.handleCell||'unassigned'}   Tip: ${points.tipCell||'unassigned'}`,24,78);
   ui.innerHTML=`Mode: Glyph Test<br>${weapons.map(w=>`<button type="button" data-glyph-weapon="${w.id}">${w.id}</button>`).join(' ')}<br><button type="button" data-mode="game">Play Game</button><button type="button" data-mode="menu">Menu</button>`;
