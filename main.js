@@ -45,7 +45,7 @@ const zones = [
 ];
 
 const state = { mode:'menu',glyphWeapon:'club',t:0,last:0,keys:new Set(),mouse:{x:0,y:0,down:false,held:0},camera:{x:MAP_CENTER.x,y:MAP_CENTER.y},player:null,projectiles:[],enemies:[],terrain:[],waves:{},mount:'foot',debug:[],diamonds:0,ammo:{arrows:0,jars:0},elements:{fire:0,ice:0,poison:0},activeElement:null,meta:{},pendingReward:null,offerNpc:null,currentZone:null,run:1 };
-const BUILD_VERSION = 'v0.2.6 build 2026-06-01 00:00 UTC';
+const BUILD_VERSION = 'v0.2.7 build 2026-06-02 00:00 UTC';
 const wrap12=h=>(h%12+12)%12; const inArc=(h,[s,e])=>{h=wrap12(h);s=wrap12(s);e=wrap12(e);if(s===e)return true;return s<=e?(h>=s&&h<e):(h>=s||h<e)}; const toClockHour=t=>wrap12((t*6/Math.PI)+3);
 const weaponDef=()=>weapons.find(w=>w.id===state.player.weapon);
 const MINOR_ZONES = new Set(['tundra','marsh','desert','mine']);
@@ -83,9 +83,10 @@ function resetWorld(){const s={x:MAP_CENTER.x,y:MAP_CENTER.y};state.player={x:s.
 
 // Waterways use 12-hour clock bearings. Cold river: Frosty Mountain -> Tundra/Fletcher boundary -> Marsh -> Swamp. Warm creek: Volcano/Smith-Pasture boundary -> Creekside oxbow near R1.5/H8 -> H3 pasture/Fletcher boundary -> Marsh -> Swamp.
 const coldRiverPath=[{h:10.35,r:3.95},{h:11.35,r:3.35},{h:0.15,r:3.05},{h:1.15,r:3.05},{h:2.45,r:3.18},{h:3.05,r:3.75},{h:3.35,r:4.55}];
-const warmCreekPath=[{h:7.35,r:3.95},{h:7.0,r:3.02},{h:7.65,r:2.25},{h:8.25,r:1.55},{h:7.65,r:1.18},{h:8.35,r:0.98},{h:9.05,r:1.45},{h:8.25,r:1.92},{h:6.8,r:1.74},{h:5.35,r:1.86},{h:4.15,r:2.05},{h:3.0,r:2.0},{h:3.0,r:3.0},{h:3.18,r:3.65},{h:3.5,r:4.52}];
+const warmCreekPath=[{h:7.35,r:3.9},{h:7.0,r:3.02},{h:7.45,r:2.35},{h:8.0,r:1.72},{h:8.72,r:1.5},{h:8.25,r:1.14},{h:7.42,r:1.35},{h:7.88,r:1.82},{h:6.4,r:1.94},{h:5.15,r:2.03},{h:4.05,r:2.08},{h:3.0,r:2.0},{h:3.0,r:3.0},{h:3.18,r:3.65},{h:3.5,r:4.52}];
 function pathPoint(pt){const th=(pt.h-3)*Math.PI/6,r=pt.r*RADIUS_UNIT;return{x:MAP_CENTER.x+Math.cos(th)*r,y:MAP_CENTER.y+Math.sin(th)*r};}
-function waterPushAt(x,y){let best={d:Infinity,x:0,y:0,slow:1,damage:0,type:null}; for(const [path,type,width,force,slow,damage] of [[coldRiverPath,'cold',95,130,0.52,0.22],[warmCreekPath,'warm',70,55,0.72,0]]){for(let i=0;i<path.length-1;i++){const a=pathPoint(path[i]),b=pathPoint(path[i+1]),vx=b.x-a.x,vy=b.y-a.y,len2=vx*vx+vy*vy,t=Math.max(0,Math.min(1,((x-a.x)*vx+(y-a.y)*vy)/len2)),px=a.x+vx*t,py=a.y+vy*t,d=Math.hypot(x-px,y-py); if(d<width&&d<best.d){const len=Math.sqrt(len2)||1,f=(1-d/width);best={d,x:vx/len*force*f,y:vy/len*force*f,slow:1-(1-slow)*f,damage:damage*f,type};}}} return best.d===Infinity?{x:0,y:0,slow:1,damage:0,type:null}:best;}
+function smoothPathPoints(path,steps=6){const pts=path.map(pathPoint),out=[pts[0]]; for(let i=1;i<pts.length-1;i++){const a=out[out.length-1],c=pts[i],b={x:(pts[i].x+pts[i+1].x)/2,y:(pts[i].y+pts[i+1].y)/2}; for(let t=1;t<=steps;t++){const u=t/steps,m=1-u;out.push({x:m*m*a.x+2*m*u*c.x+u*u*b.x,y:m*m*a.y+2*m*u*c.y+u*u*b.y});}} out.push(pts[pts.length-1]); return out;}
+function waterPushAt(x,y){let best={d:Infinity,x:0,y:0,slow:1,damage:0,type:null}; for(const [path,type,width,force,slow,damage] of [[coldRiverPath,'cold',95,130,0.52,0.22],[warmCreekPath,'warm',70,55,0.72,0]]){const pts=smoothPathPoints(path,4);for(let i=0;i<pts.length-1;i++){const a=pts[i],b=pts[i+1],vx=b.x-a.x,vy=b.y-a.y,len2=vx*vx+vy*vy,t=Math.max(0,Math.min(1,((x-a.x)*vx+(y-a.y)*vy)/len2)),px=a.x+vx*t,py=a.y+vy*t,d=Math.hypot(x-px,y-py); if(d<width&&d<best.d){const len=Math.sqrt(len2)||1,f=(1-d/width);best={d,x:vx/len*force*f,y:vy/len*force*f,slow:1-(1-slow)*f,damage:damage*f,type};}}} return best.d===Infinity?{x:0,y:0,slow:1,damage:0,type:null}:best;}
 function riverPushAt(x,y){return waterPushAt(x,y);}
 
 function collidesObstacle(x,y,{blockStumps=true}={}){for(const t of state.terrain){if(!t.solid)continue; if(t.stump&&!blockStumps)continue; const dx=t.x-x,dy=t.y-y; if(dx*dx+dy*dy<1156)return t;} return null;}
@@ -145,7 +146,7 @@ function fireCharge(){const w=effectiveWeapon(weaponDef()); const h=Math.min(1,s
 
 function hex(x,y,r){ctx.beginPath();for(let i=0;i<6;i++){const a=Math.PI/3*i+Math.PI/6,px=x+Math.cos(a)*r,py=y+Math.sin(a)*r;i?ctx.lineTo(px,py):ctx.moveTo(px,py);}ctx.closePath();}
 function drawHexBackground(){const size=12,pack=1.34,h=Math.sqrt(3)*size*pack,v=1.5*size*pack,worldW=innerWidth*1.3,worldH=innerHeight*1.3; const r0=Math.floor((state.camera.y-worldH*0.5)/v)-2,r1=Math.ceil((state.camera.y+worldH*0.5)/v)+2,c0=Math.floor((state.camera.x-worldW*0.5)/h)-2,c1=Math.ceil((state.camera.x+worldW*0.5)/h)+2; for(let row=r0;row<=r1;row++){for(let col=c0;col<=c1;col++){const wx=col*h+(row%2?h/2:0),wy=row*v,p=projectWorld(wx,wy); if(p.x<-8||p.x>innerWidth+8||p.y<-8||p.y>innerHeight+8)continue; let z=getZone(wx,wy); if(!z) z=zones[0]; const q=col-((row-(row&1))>>1),idx=((q-row)%3+3)%3; ctx.fillStyle=z.palette[idx]; hex(p.x,p.y,size); ctx.fill();}}}
-function drawWaterPath(path,color,highlight,width){ctx.strokeStyle=color;ctx.lineWidth=width*0.55;ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();path.map(pathPoint).map(p=>projectWorld(p.x,p.y)).forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.stroke();ctx.strokeStyle=highlight;ctx.lineWidth=Math.max(4,width*0.14);ctx.stroke();}
+function drawWaterPath(path,color,highlight,width){const pts=path.map(pathPoint).map(p=>projectWorld(p.x,p.y));ctx.lineCap='round';ctx.lineJoin='round';for(const [stroke,lw] of [[color,width*0.55],[highlight,Math.max(4,width*0.14)]]){ctx.strokeStyle=stroke;ctx.lineWidth=lw;ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);for(let i=1;i<pts.length-1;i++){const mid={x:(pts[i].x+pts[i+1].x)/2,y:(pts[i].y+pts[i+1].y)/2};ctx.quadraticCurveTo(pts[i].x,pts[i].y,mid.x,mid.y);}ctx.lineTo(pts[pts.length-1].x,pts[pts.length-1].y);ctx.stroke();}}
 function drawRiver(){drawWaterPath(coldRiverPath,'#2fa8ffff','#e8fbffff',72);}
 function drawSlingCreek(){drawWaterPath(warmCreekPath,'#22b6d8ff','#e1fbffff',48);}
 
