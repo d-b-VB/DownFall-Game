@@ -51,26 +51,67 @@ const zones = [
 ];
 
 const state = { mode:'menu',glyphWeapon:'club',t:0,last:0,keys:new Set(),mouse:{x:0,y:0,down:false,held:0},camera:{x:MAP_CENTER.x,y:MAP_CENTER.y},player:null,projectiles:[],pickups:[],enemies:[],terrain:[],waves:{},mount:'foot',debug:[],diamonds:0,ammo:{arrows:0,bolts:0,jars:0,pellets:0,cannonballs:0},elements:{fire:0,ice:0,poison:0},activeElement:null,meta:{},pendingReward:null,offerNpc:null,currentZone:null,run:1,hazards:[],deployables:[],finance:{savings:0,debt:0,trust:0,trustAvailable:0,amounts:{savings:5,loan:10,trust:5}},casinoWagers:{coin:1,dice:1,card:1},shopPurchases:{} };
-const BUILD_VERSION = 'v0.8.4 build 2026-06-10 13:47 UTC';
+const BUILD_VERSION = 'v0.8.5 build 2026-06-10 14:16 UTC';
 const wrap12=h=>(h%12+12)%12; const inArc=(h,[s,e])=>{h=wrap12(h);s=wrap12(s);e=wrap12(e);if(s===e)return true;return s<=e?(h>=s&&h<e):(h>=s||h<e)}; const toClockHour=t=>wrap12((t*6/Math.PI)+3);
 const weaponDef=()=>weapons.find(w=>w.id===state.player.weapon);
 const isChargeWeapon=w=>w&&(['sling','bow','ballista','cannon'].includes(w.id)||w.kind==='bow');
 const chargeLevel=held=>1-Math.exp(-Math.max(0,held)/0.72);
 const MERCHANT_ZONES = new Set(['bank','tanner','inn','casino','farrier','armorer']);
 const MINOR_ZONES = new Set(['tundra','marsh','desert','mine']);
-const UPGRADE_STATS = ['speed','range','damage','knockback'];
+const MELEE_WEAPONS = new Set(['club','axe','sword']);
+const MELEE_UPGRADE_SCHEDULE = ['damage','knockback','cooldown','damage','knockback','swingSpeed','damage','cooldown','knockback','reach'];
+const RANGED_UPGRADE_SCHEDULE = ['damage','knockback','cooldown','damage','knockback','speed','damage','cooldown','knockback','range'];
+const SLING_UPGRADE_SCHEDULE = ['damage','knockback','cooldown','shards','damage','knockback','shatterSpeed','damage','speed','knockback','range','cooldown'];
 const ELEMENT_UPGRADE_STATS = {fire:['damage','duration'],ice:['slow','duration'],poison:['potency','dose']};
 const ELEMENT_GLYPHS = {fire:'🔥',ice:'❄️',poison:'☠️'};
 const SMITH_UNLOCKS = ['sword'];
 const FOUNDRY_UNLOCKS = ['cannon','grapeshot'];
-const upgradeStatsFor=id=>id==='horse'?['speed','accel']:id==='sling'?['speed','range','damage','knockback','shards','shatterSpeed']:UPGRADE_STATS;
-function merchantOptions(zone,wave){ const cost=upgradeCost(wave),cash={diamonds:3+wave,label:`take ${3+wave}♦`}; if(zone.id==='bank')return [{merchant:'bank',stat:'bounty',cost,label:`banker: +1♦ per enemy (${cost}♦)`},cash]; if(zone.id==='tanner')return [{merchant:'foot',stat:'speed',cost,label:`tanner: +10% foot speed (${cost}♦)`},{merchant:'foot',stat:'accel',cost,label:`tanner: +10% foot acceleration (${cost}♦)`},cash]; if(zone.id==='inn')return [{merchant:'player',stat:'maxHp',cost:cost+4,label:`innkeeper: +1 max HP (${cost+4}♦)`},cash]; if(zone.id==='casino')return [{merchant:'casino',stat:'jackpot',cost,label:`casino: +10% hidden jackpot odds (${cost}♦)`},cash]; if(zone.id==='farrier')return [...(!state.player.unlocked.has('pellets')?[{unlock:'pellets',cost:unlockCost(zone),label:`farrier: unlock metal pellets (${unlockCost(zone)}♦)`}]:[]),{weapon:'horse',stat:'accel',cost,label:`farrier: +10% horse acceleration (${cost}♦)`},{weapon:'horse',stat:'speed',cost,label:`farrier: +10% horse top speed (${cost}♦)`},cash]; if(zone.id==='armorer'){ if(!state.player.unlocked.has('shield'))return [{unlock:'shield',cost:unlockCost(zone),label:`armorer: unlock shield (${unlockCost(zone)}♦)`},cash]; return [{merchant:'shield',stat:'blockChance',cost,label:`armorer: +5% shield block chance (${cost}♦)`},{merchant:'shield',stat:'blockAmount',cost,label:`armorer: +5% shield reduction (${cost}♦)`},cash]; } return null;}
+function upgradeStatsFor(id){
+  if(id==='horse')return ['accel','speed','accel','accel','speed'];
+  if(id==='sling')return SLING_UPGRADE_SCHEDULE;
+  return MELEE_WEAPONS.has(id)?MELEE_UPGRADE_SCHEDULE:RANGED_UPGRADE_SCHEDULE;
+}
 const ZONE_NPCS = {bank:'🏦',tanner:'🧵',inn:'🍲',casino:'🎰',farrier:'🐴',armorer:'🛡️',orchard:'👨‍🌾',creek:'🧒',axe:'🧔',pasture:'🐎',smith:'🛡️',fletcher:'🏹',sawmill:'🪚',marches:'♜',volcano:'🧙‍♂️',frost:'🧙',swamp:'🧙‍♀️',foundry:'🙏'};
-function metaFor(id){ if(!state.meta[id]) state.meta[id]={speed:0,range:0,damage:0,knockback:0,accel:0,poison:0,poisonResist:0,potency:0,dose:0,duration:0,slow:0,maxHp:0,bounty:0,jackpot:0,blockChance:0,blockAmount:0}; return state.meta[id]; }
-function effectiveWeapon(base){ const m=metaFor(base.id); return {...base, knock:base.knock*(1+m.knockback*0.1), reach:base.reach*(1+m.range*0.1), damageMult:1+m.damage*0.1, speedMult:1+m.speed*0.1, cooldownMult:Math.pow(0.9,m.speed||0), tiers:m}; }
-function rewardWeaponForZone(zone){ return zone.id==='smith'?(SMITH_UNLOCKS.find(u=>!state.player.unlocked.has(u))||'sword'):zone.id==='foundry'?(FOUNDRY_UNLOCKS.find(u=>!state.player.unlocked.has(u))||'cannon'):(zone.element || zone.unlock || state.player.weapon); }
-function unlockCost(zone){return zone.id==='orchard'?0:14;} function upgradeCost(wave){return 10+wave*5;} function upgradeLabel(id,stat,cost){return stat==='shards'?`${id} +1 shard (${cost}♦)`: `${id} +10% ${stat} (${cost}♦)`;}
-function buildReward(zone){ const wave=state.waves[zone.id]?.wave||1, rewardId=rewardWeaponForZone(zone); let options; if(MERCHANT_ZONES.has(zone.id)){ options=merchantOptions(zone,wave); } else if(zone.id==='smith'&&SMITH_UNLOCKS.some(u=>!state.player.unlocked.has(u))){ const next=SMITH_UNLOCKS.find(u=>!state.player.unlocked.has(u)),cost=unlockCost(zone); options=[{unlock:next,cost,label:`unlock ${next} (${cost}♦)`},{diamonds:3+wave,label:`take ${3+wave}♦`}]; } else if(zone.id==='foundry'&&FOUNDRY_UNLOCKS.some(u=>!state.player.unlocked.has(u))){ const next=FOUNDRY_UNLOCKS.find(u=>!state.player.unlocked.has(u)),cost=unlockCost(zone); options=[{unlock:next,cost,label:`unlock ${next} (${cost}♦)`},{diamonds:3+wave,label:`take ${3+wave}♦`}]; } else if(wave===1&&zone.unlock&&!state.player.unlocked.has(zone.unlock)){ const cost=unlockCost(zone); options=[{unlock:zone.unlock,cost,label:`unlock ${zone.unlock} (${cost}♦)`},{diamonds:3+wave,label:`take ${3+wave}♦`}]; } else if(zone.element&&!state.player.unlockedElements.has(zone.element)){ const cost=unlockCost(zone); options=[{elementUnlock:zone.element,cost,label:`unlock ${zone.element} (${cost}♦)`},{diamonds:3+wave,label:`take ${3+wave}♦`}]; } else if(zone.element){ const stats=ELEMENT_UPGRADE_STATS[zone.element].map(stat=>({element:zone.element,stat,cost:upgradeCost(wave),label:`${zone.element} +10% ${stat} (${upgradeCost(wave)}♦)`})); options=[stats[wave%stats.length],stats[(wave+1)%stats.length],{diamonds:3+wave,label:`take ${3+wave}♦`}]; } else { const stats=upgradeStatsFor(rewardId).map(stat=>({weapon:rewardId,stat,cost:upgradeCost(wave),label:upgradeLabel(rewardId,stat,upgradeCost(wave))})); options=[stats[wave%stats.length],stats[(wave+1)%stats.length],{diamonds:3+wave,label:`take ${3+wave}♦`}]; } state.pendingReward={zone:zone.id,wave,options,purchased:false}; state.offerNpc={x:state.player.x+42,y:state.player.y-34,glyph:ZONE_NPCS[zone.id]||'🙂',zone:zone.id,born:state.t}; dbg(`[REWARD] ${zone.name} wave ${wave} cleared; NPC selling reward`); }
+function metaFor(id){if(!state.meta[id])state.meta[id]={speed:0,range:0,reach:0,swingSpeed:0,cooldown:0,damage:0,knockback:0,accel:0,shards:0,shatterSpeed:0,poison:0,poisonResist:0,potency:0,dose:0,duration:0,slow:0,maxHp:0,bounty:0,jackpot:0,blockChance:0,blockAmount:0};return state.meta[id];}
+function effectiveWeapon(base){
+  const m=metaFor(base.id),melee=MELEE_WEAPONS.has(base.id);
+  return {...base,knock:base.knock*(1+m.knockback*.1),reach:base.reach*(1+(melee?m.reach:m.range)*.1),damageMult:1+m.damage*.1,speedMult:1+(melee?0:m.speed)*.1,swingSpeedMult:1+(melee?m.swingSpeed:0)*.1,cooldownMult:Math.pow(.9,m.cooldown||0),tiers:m};
+}
+function rewardWeaponForZone(zone){return zone.id==='smith'?(SMITH_UNLOCKS.find(u=>!state.player.unlocked.has(u))||'sword'):zone.id==='foundry'?(FOUNDRY_UNLOCKS.find(u=>!state.player.unlocked.has(u))||'cannon'):(zone.element||zone.unlock||state.player.weapon);}
+function unlockCost(zone){return zone.id==='orchard'?0:14;}
+function upgradeCost(target,stat,base=15){return base+5*(metaFor(target)[stat]||0);}
+function upgradeLabel(id,stat,cost){
+  const names={swingSpeed:'swing speed',cooldown:'cooldown time',reach:'reach',shatterSpeed:'shatter speed'};
+  if(stat==='shards')return `${id} +1 shard (${cost}♦)`;
+  if(stat==='cooldown')return `${id} -10% cooldown (${cost}♦)`;
+  return `${id} +10% ${names[stat]||stat} (${cost}♦)`;
+}
+function upgradeOption(target,stat,kind='weapon',base=15){const cost=upgradeCost(target,stat,base);return{[kind]:target,stat,cost,label:upgradeLabel(target,stat,cost)};}
+function merchantOptions(zone,wave){
+  const cash={diamonds:3+wave,label:`take ${3+wave}♦`};
+  if(zone.id==='bank'){const o=upgradeOption('bank','bounty','merchant',20);o.label=`banker: +1♦ per enemy (${o.cost}♦)`;return[o,cash];}
+  if(zone.id==='tanner'){const accel=upgradeOption('foot','accel','merchant',12),speed=upgradeOption('foot','speed','merchant',18);accel.label=`tanner: +10% foot acceleration (${accel.cost}♦)`;speed.label=`tanner: +10% foot top speed (${speed.cost}♦)`;return[accel,speed,cash];}
+  if(zone.id==='inn'){const o=upgradeOption('player','maxHp','merchant',20);o.label=`innkeeper: +1 max HP (${o.cost}♦)`;return[o,cash];}
+  if(zone.id==='casino'){const o=upgradeOption('casino','jackpot','merchant',18);o.label=`casino: improve hidden jackpot odds (${o.cost}♦)`;return[o,cash];}
+  if(zone.id==='farrier'){const accel=upgradeOption('horse','accel','weapon',12),speed=upgradeOption('horse','speed','weapon',18);accel.label=`farrier: +10% horse acceleration (${accel.cost}♦)`;speed.label=`farrier: +10% horse top speed (${speed.cost}♦)`;return[...(!state.player.unlocked.has('pellets')?[{unlock:'pellets',cost:unlockCost(zone),label:`farrier: unlock metal pellets (${unlockCost(zone)}♦)`}]:[]),accel,speed,cash];}
+  if(zone.id==='armorer'){
+    if(!state.player.unlocked.has('shield'))return[{unlock:'shield',cost:unlockCost(zone),label:`armorer: unlock shield (${unlockCost(zone)}♦)`},cash];
+    const chance=upgradeOption('shield','blockChance','merchant',16),amount=upgradeOption('shield','blockAmount','merchant',16);chance.label=`armorer: +5% shield block chance (${chance.cost}♦)`;amount.label=`armorer: +5% shield reduction (${amount.cost}♦)`;return[chance,amount,cash];
+  }
+  return null;
+}
+function buildReward(zone){
+  const wave=state.waves[zone.id]?.wave||1,rewardId=rewardWeaponForZone(zone),cash={diamonds:3+wave,label:`take ${3+wave}♦`};let options;
+  if(MERCHANT_ZONES.has(zone.id))options=merchantOptions(zone,wave);
+  else if(zone.id==='marches')options=[{diamonds:3+wave,label:`soldier recruitment coming soon — take ${3+wave}♦`}];
+  else if(zone.id==='smith'&&SMITH_UNLOCKS.some(u=>!state.player.unlocked.has(u))){const next=SMITH_UNLOCKS.find(u=>!state.player.unlocked.has(u)),cost=unlockCost(zone);options=[{unlock:next,cost,label:`unlock ${next} (${cost}♦)`},cash];}
+  else if(zone.id==='foundry'&&FOUNDRY_UNLOCKS.some(u=>!state.player.unlocked.has(u))){const next=FOUNDRY_UNLOCKS.find(u=>!state.player.unlocked.has(u)),cost=unlockCost(zone);options=[{unlock:next,cost,label:`unlock ${next} (${cost}♦)`},cash];}
+  else if(wave===1&&zone.unlock&&!state.player.unlocked.has(zone.unlock)){const cost=unlockCost(zone);options=[{unlock:zone.unlock,cost,label:`unlock ${zone.unlock} (${cost}♦)`},cash];}
+  else if(zone.element&&!state.player.unlockedElements.has(zone.element)){const cost=unlockCost(zone);options=[{elementUnlock:zone.element,cost,label:`unlock ${zone.element} (${cost}♦)`},cash];}
+  else if(zone.element){const pool=ELEMENT_UPGRADE_STATS[zone.element],a=pool[wave%pool.length],b=pool[(wave+1)%pool.length];options=[upgradeOption(zone.element,a,'element'),upgradeOption(zone.element,b,'element'),cash];}
+  else{const pool=upgradeStatsFor(rewardId),a=pool[wave%pool.length],b=pool[(wave+1)%pool.length];options=[upgradeOption(rewardId,a),upgradeOption(rewardId,b),cash];}
+  state.pendingReward={zone:zone.id,wave,options,purchased:false};state.offerNpc={x:state.player.x+42,y:state.player.y-34,glyph:ZONE_NPCS[zone.id]||'🙂',zone:zone.id,born:state.t};dbg(`[REWARD] ${zone.name} wave ${wave} cleared; NPC selling reward`);
+}
 function chooseReward(i){ const reward=state.pendingReward, here=getZone(state.player.x,state.player.y); if(!reward||reward.purchased||here?.id!==reward.zone) return; const option=reward.options[i]; if(!option) return; if(option.diamonds){state.diamonds+=option.diamonds;dbg(`[PAYOUT] +${option.diamonds}♦`);reward.purchased=true;return;} const cost=option.cost||0; if(state.diamonds<cost){dbg(`[SHOP] need ${cost}♦ for ${option.label}; have ${state.diamonds}♦`);return;} state.diamonds-=cost; if(option.unlock){ state.player.unlocked.add(option.unlock); if(weapons.some(w=>w.id===option.unlock))state.player.weapon=option.unlock; dbg(`[UNLOCK] ${option.unlock} bought for ${cost}♦`); } else if(option.elementUnlock){ state.player.unlockedElements.add(option.elementUnlock); state.activeElement=option.elementUnlock; dbg(`[UNLOCK] ${option.elementUnlock} element bought for ${cost}♦`); } else if(option.element){ const m=metaFor(option.element); m[option.stat]++; dbg(`[UPGRADE] ${option.element}.${option.stat} -> ${m[option.stat]} cost=${cost}♦`); } else if(option.merchant){ const m=metaFor(option.merchant); m[option.stat]++; if(option.merchant==='player'&&option.stat==='maxHp'){state.player.maxHp++;state.player.hp=Math.min(state.player.maxHp,state.player.hp+1);} dbg(`[UPGRADE] ${option.merchant}.${option.stat} -> ${m[option.stat]} cost=${cost}♦`); } else if(option.heal){ state.player.hp=Math.min(state.player.maxHp,state.player.hp+option.heal); dbg(`[HEAL] +${option.heal} HP cost=${cost}♦`); } else { const m=metaFor(option.weapon); m[option.stat]++; dbg(`[UPGRADE] ${option.weapon}.${option.stat} -> ${m[option.stat]} cost=${cost}♦`); } reward.purchased=true; }
 const CONSUMABLE_BASE={arrows:3,bolts:12,jars:5,pellets:4,cannonballs:8,fire:7,ice:7,poison:7,antitoxin:8,fruit:2,meat:4,cheese:6,stew:8,cloak:9,caltrops:7,decoy:9};
 const ESCALATING_CONSUMABLES=new Set(['fruit','meat','cheese','stew','cloak','caltrops','decoy']);
@@ -80,6 +121,7 @@ function buyItem(kind){
   const qty={arrows:6,bolts:3,jars:2,pellets:8,cannonballs:2,fire:2,ice:2,poison:2},heals={fruit:1,meat:2,cheese:3,stew:4};
   const here=getZone(state.player.x,state.player.y),z=(state.pendingReward&&here?.id===state.pendingReward.zone)?state.pendingReward.zone:state.currentZone,home={arrows:'fletcher',bolts:'sawmill',jars:'creek',pellets:'smith',cannonballs:'foundry',fruit:'orchard',meat:'axe',cheese:'pasture',stew:'inn',cloak:'tanner',caltrops:'farrier',decoy:'armorer',fire:'volcano',ice:'frost',poison:'swamp',antitoxin:'swamp'}[kind];
   if(home&&z!==home){dbg(`[SHOP] ${kind} is sold in ${home}`);return;}
+  if(kind==='cloak'&&(state.player.cloaks||0)>=1)return dbg('[SHOP] only one elemental cloak can be carried');
   if(kind==='arrows'&&!state.player.unlocked.has('bow'))return dbg('[SHOP] unlock bow before buying arrows');
   if(kind==='bolts'&&!state.player.unlocked.has('ballista'))return dbg('[SHOP] unlock ballista before buying bolts');
   if(kind==='jars'&&!state.player.unlocked.has('sling'))return dbg('[SHOP] unlock sling before buying jars');
@@ -89,7 +131,7 @@ function buyItem(kind){
   const cost=consumablePrice(kind);if(cost===undefined)return;if(state.diamonds<cost)return dbg(`[SHOP] need ${cost}♦ for ${kind}`);state.diamonds-=cost;const key=purchaseKey(kind);state.shopPurchases[key]=(state.shopPurchases[key]||0)+1;
   if(heals[kind]){const before=state.player.hp;state.player.hp=Math.min(state.player.maxHp,state.player.hp+heals[kind]);dbg(`[HEAL] ${kind} +${(state.player.hp-before).toFixed(1)} HP; next ${consumablePrice(kind)}♦`);return;}
   if(kind==='antitoxin'){state.player.status.poison=0;return dbg('[SHOP] anti-toxin cleared poison');}
-  if(kind==='cloak'){state.player.cloaks=(state.player.cloaks||0)+1;return dbg('[SHOP] elemental cloak +1');}
+  if(kind==='cloak'){state.player.cloaks=1;return dbg('[SHOP] elemental cloak equipped');}
   if(kind==='caltrops'){state.player.caltrops=(state.player.caltrops||0)+1;return dbg('[SHOP] caltrops +1');}
   if(kind==='decoy'){state.player.decoys=(state.player.decoys||0)+1;return dbg('[SHOP] armor-stand decoy +1');}
   if(['fire','ice','poison'].includes(kind)){state.elements[kind]+=qty[kind];state.activeElement=kind;return dbg(`[SHOP] bought ${qty[kind]} ${kind} charges`);}
@@ -116,7 +158,7 @@ function casinoAction(game){
 function financeAmountControl(account,value){return `<button data-finance-adjust="-1" data-account="${account}">−</button><strong>${value}♦</strong><button data-finance-adjust="1" data-account="${account}">+</button>`;}
 function shopConsumables(zoneId){
   const items={orchard:[['fruit','🍎 fruit +1 HP']],axe:[['meat','🍖 meat +2 HP']],pasture:[['cheese','🧀 cheese +3 HP']],inn:[['stew','🍲 stew +4 HP']],creek:[['jars','🏺 2 jars']],fletcher:[['arrows','➵ 6 arrows']],sawmill:[['bolts','➳ 3 ballista bolts']],smith:[['pellets','● 8 pellets']],foundry:[['cannonballs','⚫ 2 cannonballs']],tanner:[['cloak','🧥 elemental cloak']],farrier:[['caltrops','✣ caltrops']],armorer:[['decoy','🛡️ armor decoy']],volcano:[['fire','🔥 2 fire charges']],frost:[['ice','❄️ 2 ice charges']],swamp:[['poison','☠️ 2 poison charges'],['antitoxin','🧪 anti-toxin']]}[zoneId]||[];
-  let html=items.map(([kind,label])=>`<button type="button" data-buy="${kind}">${label} · ${consumablePrice(kind)}♦</button>`).join(' ');
+  let html=items.map(([kind,label])=>{const full=kind==='cloak'&&(state.player.cloaks||0)>=1;return `<button type="button" data-buy="${kind}" ${full?'disabled':''}>${full?'🧥 cloak already equipped':`${label} · ${consumablePrice(kind)}♦`}</button>`;}).join(' ');
   if(zoneId==='bank'){const f=state.finance;html=`<table class="money-table"><tr><th>Account</th><th>Balance</th><th>Amount</th><th>Deposit / Borrow</th><th>Withdraw / Repay</th></tr><tr><td>Savings</td><td>${f.savings}♦</td><td>${financeAmountControl('savings',f.amounts.savings)}</td><td><button data-finance="savingsDeposit">Deposit</button></td><td><button data-finance="savingsWithdraw">Withdraw</button></td></tr><tr><td>Loan</td><td>${f.debt}♦ owed</td><td>${financeAmountControl('loan',f.amounts.loan)}</td><td><button data-finance="loanBorrow">Borrow</button></td><td><button data-finance="loanRepay">Repay</button></td></tr><tr><td>Trust</td><td>${f.trust}♦ (${f.trustAvailable}♦ available)</td><td>${financeAmountControl('trust',f.amounts.trust)}</td><td><button data-finance="trustDeposit">Deposit</button></td><td><button data-finance="trustWithdraw">Withdraw</button></td></tr></table>`;}
   if(zoneId==='casino')html=`<table class="money-table"><tr><th>Game</th><th>Potential payout</th><th>Wager</th><th>Play</th></tr>${[['coin','2×'],['dice','5×'],['card','40×']].map(([game,pay])=>`<tr><td>${game}</td><td>${pay}</td><td><button data-casino-adjust="-1" data-game="${game}">−</button><strong>${state.casinoWagers[game]}♦</strong><button data-casino-adjust="1" data-game="${game}">+</button></td><td><button data-casino="${game}">Wager</button></td></tr>`).join('')}</table>`;
   return html||'<span>None available here.</span>';
@@ -300,7 +342,7 @@ function update(dt){const p=state.player; let dx=(state.keys.has('d')?1:0)-(stat
   state.camera.x+=(p.x-state.camera.x)*0.1; state.camera.y+=(p.y-state.camera.y)*0.1;
   p.attackCooldown=Math.max(0,(p.attackCooldown||0)-dt); if(state.mouse.down&&p.attackCooldown<=0)state.mouse.held+=dt; p.cannonCooldown=Math.max(0,(p.cannonCooldown||0)-dt); if(['bow','ballista','cannon'].includes(p.weapon))p.shield=false; if(['ballista','cannon'].includes(p.weapon))state.mount='foot';
   if(zone&&!state.pendingReward&&!state.waves[zone.id].spawned&&!state.waves[zone.id].cleared&&!state.enemies.some(e=>e.zone===zone.id&&e.hp>0))spawnWave(zone);
-  if(state.mouse.down&&state.mouse.queuedAttack&&p.attackCooldown<=0&&!isChargeWeapon(weaponDef()))beginMeleeSwing(); if(p.swing>0){p.swing-=dt*3;doSwingDamage();} passiveMeleeContact(dt);
+  if(state.mouse.down&&state.mouse.queuedAttack&&p.attackCooldown<=0&&!isChargeWeapon(weaponDef()))beginMeleeSwing(); if(p.swing>0){p.swing-=dt*3*effectiveWeapon(weaponDef()).swingSpeedMult;doSwingDamage();} passiveMeleeContact(dt);
   for(const pr of state.projectiles){
     pr.vx*=Math.max(0,1-dt*0.45);pr.vy*=Math.max(0,1-dt*0.45);pr.speed=Math.hypot(pr.vx,pr.vy);if(pr.spin)pr.rotation=(pr.rotation||0)+pr.spin*dt;
     const nx=pr.x+pr.vx*dt,ny=pr.y+pr.vy*dt;
@@ -369,11 +411,11 @@ function knockEnemy(e,angle,impulse){
   e.vx=(e.vx||0)+nx*impulse;e.vy=(e.vy||0)+ny*impulse;e.x+=nx*kick;e.y+=ny*kick;
   e.knockbackT=Math.max(e.knockbackT||0,Math.min(0.42,0.1+impulse/620));
 }
-function passiveMeleeContact(dt){const p=state.player,w=effectiveWeapon(weaponDef());if(w.kind!=='swing')return; const a=Math.atan2(state.mouse.y-innerHeight/2,state.mouse.x-innerWidth/2),sx=p.x+Math.cos(a)*w.reach*0.75,sy=p.y+Math.sin(a)*w.reach*0.75; for(const e of state.enemies){const rel=Math.hypot((p.vx||0)-(e.vx||0),(p.vy||0)-(e.vy||0)); if(rel>35&&Math.hypot(e.x-sx,e.y-sy)<38&&state.t>(e.meleeTouch||0)){const spMul=Math.min(2.6,rel/150)*w.speedMult,dmg=w.damage*0.45*spMul*w.damageMult,kb=w.knock*spMul*14,ang=Math.atan2(e.y-p.y,e.x-p.x); e.hp-=dmg;e.hitT=state.t;e.lunge=5;knockEnemy(e,ang,kb);e.meleeTouch=state.t+0.32;dbg(`[TOUCH:${w.id}] dmg=${dmg.toFixed(2)} rel=${rel.toFixed(1)} hp=${e.hp.toFixed(2)}`);}}}
+function passiveMeleeContact(dt){const p=state.player,w=effectiveWeapon(weaponDef());if(w.kind!=='swing')return; const a=Math.atan2(state.mouse.y-innerHeight/2,state.mouse.x-innerWidth/2),sx=p.x+Math.cos(a)*w.reach*0.75,sy=p.y+Math.sin(a)*w.reach*0.75; for(const e of state.enemies){const rel=Math.hypot((p.vx||0)-(e.vx||0),(p.vy||0)-(e.vy||0)); if(rel>35&&Math.hypot(e.x-sx,e.y-sy)<38&&state.t>(e.meleeTouch||0)){const spMul=Math.min(2.6,rel/150),dmg=w.damage*0.45*spMul*w.damageMult,kb=w.knock*spMul*14,ang=Math.atan2(e.y-p.y,e.x-p.x); e.hp-=dmg;e.hitT=state.t;e.lunge=5;knockEnemy(e,ang,kb);e.meleeTouch=state.t+0.32;dbg(`[TOUCH:${w.id}] dmg=${dmg.toFixed(2)} rel=${rel.toFixed(1)} hp=${e.hp.toFixed(2)}`);}}}
 
 function doSwingDamage(){const p=state.player,w=effectiveWeapon(weaponDef());if(w.kind!=='swing')return; const a=Math.atan2(state.mouse.y-innerHeight/2,state.mouse.x-innerWidth/2); const sx=p.x+Math.cos(a)*w.reach,sy=p.y+Math.sin(a)*w.reach;
  const swingSpeed = Math.hypot(state.player.vx,state.player.vy) + Math.hypot(state.mouse.x-innerWidth/2,state.mouse.y-innerHeight/2)*0.002;
- for(const e of state.enemies){if(e.swingHit!==p.swingSerial&&Math.hypot(e.x-sx,e.y-sy)<45){e.swingHit=p.swingSerial;const spMul=(1+Math.min(2,swingSpeed/220))*w.speedMult; const dmg=w.damage*spMul*w.damageMult; e.hp-=dmg; e.hitT=state.t;e.lunge=5; if(p.swingElement)addStatus(e,p.swingElement,1); const kb=w.knock*spMul*18; knockEnemy(e,a,kb); dbg(`[SWING:${w.id}] -> enemy ${e.glyph} dmg=${dmg.toFixed(2)} kb=${kb.toFixed(1)} hp=${e.hp.toFixed(2)} ang=${a.toFixed(2)}`);}}
+ for(const e of state.enemies){if(e.swingHit!==p.swingSerial&&Math.hypot(e.x-sx,e.y-sy)<45){e.swingHit=p.swingSerial;const spMul=(1+Math.min(2,swingSpeed/220))*w.swingSpeedMult; const dmg=w.damage*spMul*w.damageMult; e.hp-=dmg; e.hitT=state.t;e.lunge=5; if(p.swingElement)addStatus(e,p.swingElement,1); const kb=w.knock*spMul*18; knockEnemy(e,a,kb); dbg(`[SWING:${w.id}] -> enemy ${e.glyph} dmg=${dmg.toFixed(2)} kb=${kb.toFixed(1)} hp=${e.hp.toFixed(2)} ang=${a.toFixed(2)}`);}}
  for(const t of state.terrain){if(t.swingHit!==p.swingSerial&&Math.hypot(t.x-sx,t.y-sy)<45){t.swingHit=p.swingSerial;applyHit(t,w,1);}} }
 
 
@@ -501,7 +543,7 @@ function drawSpecialGlyph(id, gridW, gridH){
 }
 
 function cellPoint(cell,gridW,gridH){ const m=String(cell||'F1').match(/^([A-K])(-?\d+)$/); if(!m)return{x:-gridW/2,y:0}; const row=glyphRows.indexOf(m[1]),col=Number(m[2]); return{x:((col-0.5)/12)*gridW-gridW/2,y:((row+0.5)/11)*gridH-gridH/2}; }
-function drawHeldWeapon(w, aim){ const hold=chargeLevel(state.mouse.held), swingViz=(w.id==='club'||w.kind==='swing')?Math.sin((1-Math.max(0,state.player.swing))*Math.PI*2.4)*0.9*Math.max(0,state.player.swing):0, wob=(w.id==='bow'&&state.mouse.down)?Math.sin(state.t*20)*Math.max(0,state.mouse.held-0.7)*0.12:0; const gw=21,gh=16.5,pts=weaponGlyphPoints[w.id]||{},hp=cellPoint(pts.handleCell,gw,gh),tp=cellPoint(pts.tipCell,gw,gh),glyphAngle=Math.atan2(tp.y-hp.y,tp.x-hp.x); ctx.rotate(aim+swingViz+wob); ctx.translate(10,0); ctx.rotate(-glyphAngle); ctx.translate(-hp.x,-hp.y); drawWeaponVisual(w,gw,gh,(w.id==='bow'&&state.mouse.down)?hold:0.45); }
+function drawHeldWeapon(w, aim){ const hold=chargeLevel(state.mouse.held),reachScale=MELEE_WEAPONS.has(w.id)?1+metaFor(w.id).reach*.1:1, swingViz=(w.id==='club'||w.kind==='swing')?Math.sin((1-Math.max(0,state.player.swing))*Math.PI*2.4)*0.9*Math.max(0,state.player.swing):0, wob=(w.id==='bow'&&state.mouse.down)?Math.sin(state.t*20)*Math.max(0,state.mouse.held-0.7)*0.12:0; const gw=21*reachScale,gh=16.5,pts=weaponGlyphPoints[w.id]||{},hp=cellPoint(pts.handleCell,gw,gh),tp=cellPoint(pts.tipCell,gw,gh),glyphAngle=Math.atan2(tp.y-hp.y,tp.x-hp.x); ctx.rotate(aim+swingViz+wob); ctx.translate(10,0); ctx.rotate(-glyphAngle); ctx.translate(-hp.x,-hp.y); drawWeaponVisual(w,gw,gh,(w.id==='bow'&&state.mouse.down)?hold:0.45); }
 
 
 function renderGlyphTest(){
