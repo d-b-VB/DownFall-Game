@@ -51,7 +51,7 @@ const zones = [
 ];
 
 const state = { mode:'menu',glyphWeapon:'club',t:0,last:0,keys:new Set(),mouse:{x:0,y:0,down:false,held:0},camera:{x:MAP_CENTER.x,y:MAP_CENTER.y},player:null,projectiles:[],pickups:[],enemies:[],terrain:[],waves:{},mount:'foot',debug:[],diamonds:0,ammo:{arrows:0,bolts:0,jars:0,pellets:0,cannonballs:0},elements:{fire:0,ice:0,poison:0},activeElement:null,meta:{},pendingReward:null,offerNpc:null,currentZone:null,run:1,hazards:[],deployables:[],finance:{savings:0,debt:0,trust:0,trustAvailable:0,amounts:{savings:5,loan:10,trust:5}},casinoWagers:{coin:1,dice:1,card:1},shopPurchases:{} };
-const BUILD_VERSION = 'v0.8.5 build 2026-06-10 14:16 UTC';
+const BUILD_VERSION = 'v0.9.0 build 2026-06-11 04:06 UTC';
 const wrap12=h=>(h%12+12)%12; const inArc=(h,[s,e])=>{h=wrap12(h);s=wrap12(s);e=wrap12(e);if(s===e)return true;return s<=e?(h>=s&&h<e):(h>=s||h<e)}; const toClockHour=t=>wrap12((t*6/Math.PI)+3);
 const weaponDef=()=>weapons.find(w=>w.id===state.player.weapon);
 const isChargeWeapon=w=>w&&(['sling','bow','ballista','cannon'].includes(w.id)||w.kind==='bow');
@@ -173,36 +173,80 @@ function resurrect(){ dbg(`[DOWNFALL] run ${state.run} ended; upgrades persist, 
 function randomPointInZone(zone){ for(let tries=0;tries<80;tries++){ const span=((zone.arc[1]-zone.arc[0]+12)%12)||12,h=(zone.arc[0]+Math.random()*span)%12,rr=zone.ring.min+(zone.ring.max-zone.ring.min)*(0.08+Math.random()*0.84),th=(h-3)*Math.PI/6,x=MAP_CENTER.x+Math.cos(th)*rr,y=MAP_CENTER.y+Math.sin(th)*rr; if(!collidesObstacle(x,y))return{x,y}; } return {x:state.player.x+80,y:state.player.y}; }
 function spawnPointOuterEdge(zone,i,count){const span=((zone.arc[1]-zone.arc[0]+12)%12)||12,h=(zone.arc[0]+span*((i+0.5)/count))%12,rr=zone.ring.max-45-Math.random()*80,th=(h-3)*Math.PI/6;return{x:MAP_CENTER.x+Math.cos(th)*rr,y:MAP_CENTER.y+Math.sin(th)*rr};}
 function enemyVariant(zone,wave,i){
-  let glyph=zone.enemy||'😠',hpMul=1,powMul=1,kind=zone.id==='axe'?'spider':zone.id,weapon=null;
-  if(zone.id==='orchard'&&wave>1&&i%3===0){glyph='🐿️';hpMul=.65;powMul=.9;kind='squirrel';}
-  if(zone.id==='creek'&&wave>1&&i%4===0){glyph='🐢';hpMul=2.6;powMul=1.8;kind='turtle';}
-  if(zone.id==='axe'&&wave>1&&i%3===0){glyph='🦌';hpMul=1.2;powMul=1.3;kind='deer';}
+  let glyph=zone.enemy||'😠',hpMul=1,powMul=1,kind=zone.id==='axe'?'spider':zone.id,weapon=null,archetype='standard',knockResist=1;
+  const set=(g,k,h=1,p=1,a='standard',resist=1)=>{glyph=g;kind=k;hpMul=h;powMul=p;archetype=a;knockResist=resist;};
+  if(zone.id==='orchard'&&wave>1&&i%3===0)set('🐿️','squirrel',.65,.9);
+  if(zone.id==='creek'&&wave>1&&i%4===0)set('🐢','turtle',3.2,2.1,'tank',.28);
+  if(zone.id==='axe'&&wave>1&&i%3===0)set('🦌','deer',1.1,1.65,'charger',.72);
+  if(zone.id==='pasture'&&wave>1&&i%4===0)set('🐏','ram',1.3,1.8,'charger',.62);
   if(zone.id==='fletcher'){
-    const opts=wave<2?['🐦‍⬛']:wave<4?['🐦‍⬛','🦃']:['🐦‍⬛','🦃','🦅'];
-    glyph=opts[i%opts.length];kind=glyph==='🦅'?'eagle':glyph==='🦃'?'turkey':'crow';
-    hpMul=glyph==='🦃'?2.4:glyph==='🐦‍⬛'?.75:1;powMul=glyph==='🦅'?1.8:glyph==='🦃'?1.7:.8;
+    const opts=wave<2?['🐦‍⬛']:wave<4?['🐦‍⬛','🦃']:['🐦‍⬛','🦃','🦅'];glyph=opts[i%opts.length];
+    if(glyph==='🦃')set(glyph,'turkey',2.9,2,'tank',.32);else if(glyph==='🦅')set(glyph,'eagle',1,1.8,'bird',.8);else set(glyph,'crow',.75,.8,'bird',.9);
   }
   if(zone.id==='smith'){glyph='♙';kind='pawn';weapon=wave>3?'🏹':wave>2?'🗡️':wave>1?'🪓':null;}
-  if(zone.id==='pasture'&&wave>1&&i%3===0){glyph='🐇';hpMul=.45;powMul=.75;kind='rabbit';}
-  if(zone.id==='inn'){glyph='🤢';kind='innDrunk';hpMul=1.15;powMul=1.25;}
-  if(zone.id==='casino'){glyph='🤢';kind='casinoDrunk';hpMul=1.05;powMul=1.2;}
-  const treeZones=new Set(['orchard','axe','fletcher','sawmill']);
-  if(wave>=3&&treeZones.has(zone.id)&&kind!=='squirrel'&&i%6===5){glyph='🐿️';hpMul=.72;powMul=.95;kind='squirrel';}
-  return{glyph,hpMul,powMul,kind,weapon};
+  if(zone.id==='pasture'&&wave>1&&i%3===0&&kind!=='ram')set('🐇','rabbit',.45,.75);
+  if(zone.id==='bank'){
+    if(wave>=2&&i%5===0)set('🐻','bear',3.4,2.3,'tank',.22);
+    else if(wave>=2&&i%5===1)set('🐂','bull',1.55,2,'charger',.55);
+    else if(wave>=2&&i%5===2)set('🦝','raccoon',.7,.35,'thief',.9);
+  }
+  if(zone.id==='tanner'){
+    if(wave>=2&&i%4===0)set('🐂','bull',1.5,1.9,'charger',.58);
+    else if(wave>=2&&i%4===1)set('🐿️','squirrel',.7,.85);
+  }
+  if(zone.id==='casino'){
+    if(wave>=2&&i%4===0)set('🦝','raccoon',.7,.35,'thief',.9);
+    else set('🤢','casinoDrunk',1.05,1.2);
+  }
+  if(zone.id==='inn')set('🤢','innDrunk',1.15,1.25);
+  if(zone.id==='sawmill'){
+    if(wave>=2&&i%5===0)set('🐻','bear',3.6,2.35,'tank',.2);
+    else if(wave>=2&&i%5===1)set('🫎','moose',1.8,2.15,'charger',.48);
+  }
+  if(zone.id==='mine'){
+    if(wave>=2&&i%4===0)set('🐻','bear',3.5,2.3,'tank',.22);
+    else if(wave>=2&&i%4===1)set('🐐','goat',1.25,1.8,'charger',.65);
+    else if(wave>=2&&i%4===2)set('🦇','bat',.65,.9,'bird',.92);
+  }
+  if(zone.id==='tundra'||zone.id==='frost'){
+    if(wave>=2&&i%4===0)set('🐻‍❄️','polarBear',3.8,2.5,'tank',.18);
+    else if(zone.id==='frost'&&wave>=2&&i%4===1)set('🐐','goat',1.3,1.9,'charger',.62);
+  }
+  if(zone.id==='foundry'&&wave>=3&&i%5===0)set('🦇','bat',.7,1,'bird',.9);
+  const treeZones=new Set(['orchard','axe','fletcher','sawmill','tanner']);
+  if(wave>=3&&treeZones.has(zone.id)&&kind!=='squirrel'&&i%7===6)set('🐿️','squirrel',.72,.95);
+  return{glyph,hpMul,powMul,kind,weapon,archetype,knockResist};
 }
 function spawnWave(zone){
   const wave=state.waves[zone.id]?.wave||1,radTier=zone.ring.min/RADIUS_UNIT,difficulty=Math.pow(1.65,radTier),enemyPower=1.25*Math.pow(2.15,radTier)*Math.pow(1.1,wave*3);
-  state.waves[zone.id].spawned=true;
-  const count=6+Math.min(24,Math.floor(wave*1.25+radTier*2.1));
-  let hp=5*difficulty*(1+wave*0.08);if(zone.id==='orchard')hp*=0.83;if(zone.id==='fletcher')hp*=0.55;
-  for(let i=0;i<count;i++){
-    const pt=spawnPointOuterEdge(zone,i,count),v=enemyVariant(zone,wave,i);
-    state.enemies.push({x:pt.x,y:pt.y,hp:hp*v.hpMul,maxHp:hp*v.hpMul,status:{},glyph:v.glyph,kind:v.kind,weapon:v.weapon,zone:zone.id,wave,minR:zone.ring.min,vx:0,vy:0,bounty:1+Math.floor((wave-1)/2)+Math.floor(radTier/2),hop:Math.random()*0.8,power:enemyPower*v.powMul,shotT:1+Math.random()*2});
-  }
+  state.waves[zone.id].spawned=true;const count=6+Math.min(24,Math.floor(wave*1.25+radTier*2.1));let hp=5*difficulty*(1+wave*.08);if(zone.id==='orchard')hp*=.83;if(zone.id==='fletcher')hp*=.55;
+  for(let i=0;i<count;i++){const pt=spawnPointOuterEdge(zone,i,count),v=enemyVariant(zone,wave,i);state.enemies.push({x:pt.x,y:pt.y,hp:hp*v.hpMul,maxHp:hp*v.hpMul,status:{},glyph:v.glyph,kind:v.kind,archetype:v.archetype,knockResist:v.knockResist,weapon:v.weapon,zone:zone.id,wave,minR:zone.ring.min,vx:0,vy:0,bounty:1+Math.floor((wave-1)/2)+Math.floor(radTier/2),hop:Math.random()*.8,power:enemyPower*v.powMul,shotT:1+Math.random()*2,behaviorT:Math.random()});}
   dbg(`[WAVE] ${zone.name} wave ${wave} enemies=${count} hp=${hp.toFixed(1)} power=${enemyPower.toFixed(2)}`);
 }
 function completeWave(zone){ const waveState=state.waves[zone.id]; if(!waveState||waveState.cleared) return; waveState.cleared=true;if(zone.id==='bank'){if(state.finance.savings>0){const interest=Math.max(1,Math.floor(state.finance.savings*0.08));state.finance.savings+=interest;dbg(`[BANK] savings interest +${interest}♦`);}if(state.finance.trust>0){const interest=Math.max(1,Math.floor(state.finance.trust*0.08));state.finance.trust+=interest;state.finance.trustAvailable+=interest*2;dbg(`[BANK] trust interest +${interest}♦; withdrawal allowance +${interest*2}♦`);}} if(MINOR_ZONES.has(zone.id)){ const bonus=2+Math.floor((waveState.wave||1)/2); state.diamonds+=bonus; dbg(`[MINOR] ${zone.name} wave ${waveState.wave} +${bonus}♦`); waveState.wave++; waveState.spawned=false; waveState.cleared=false; return; } buildReward(zone); }
-function resolveEnemySpacing(dt){ const p=state.player; const pr=state.mount==='horse'&&p.unlocked.has('horse')?28:18, er=16; for(let i=0;i<state.enemies.length;i++){ const e=state.enemies[i]; for(let j=i+1;j<state.enemies.length;j++){ const o=state.enemies[j], dx=o.x-e.x, dy=o.y-e.y, d=Math.hypot(dx,dy)||1, min=er*2; if(d<min){ const push=(min-d)*0.5, nx=dx/d, ny=dy/d; e.x-=nx*push; e.y-=ny*push; o.x+=nx*push; o.y+=ny*push; } } const dx=p.x-e.x, dy=p.y-e.y, d=Math.hypot(dx,dy)||1, min=pr+er; if(d<min&&(e.stun||0)<=0&&(e.knockbackT||0)<=0){ const nx=dx/d, ny=dy/d, push=min-d; e.x-=nx*push*0.65; e.y-=ny*push*0.65; p.x+=nx*push*0.35; p.y+=ny*push*0.35; p.vx+=nx*18; p.vy+=ny*18; let hit=(0.7+0.55*Math.sqrt(e.power||1))*dt*(e.kind==='turtle'||e.kind==='turkey'?1.7:e.kind==='eagle'?1+Math.min(1.5,Math.hypot(e.vx||0,e.vy||0)/260):1); if(p.shield){const sh=metaFor('shield'),chance=Math.min(0.75,0.3+(sh.blockChance||0)*0.05),block=Math.min(0.8,0.3+(sh.blockAmount||0)*0.05); if(Math.random()<chance){hit*=1-block;p.vx+=nx*22;p.vy+=ny*22;e.vx-=nx*22;e.vy-=ny*22;dbg(`[SHIELD] blocked ${(block*100).toFixed(0)}% contact damage`);}} p.hp=Math.max(0,p.hp-hit); if(e.kind==='spider'||e.kind==='snake'||e.zone==='swamp'||e.zone==='marsh')addStatus(p,'poison',0.02*(e.power||1)); } } }
+function resolveEnemySpacing(dt){
+  const p=state.player,pr=state.mount==='horse'&&p.unlocked.has('horse')?28:18,er=16;
+  for(let i=0;i<state.enemies.length;i++){
+    const e=state.enemies[i];
+    for(let j=i+1;j<state.enemies.length;j++){const o=state.enemies[j],dx=o.x-e.x,dy=o.y-e.y,d=Math.hypot(dx,dy)||1,min=er*2;if(d<min){const push=(min-d)*.5,nx=dx/d,ny=dy/d;e.x-=nx*push;e.y-=ny*push;o.x+=nx*push;o.y+=ny*push;}}
+    const dx=p.x-e.x,dy=p.y-e.y,d=Math.hypot(dx,dy)||1,min=pr+er;
+    if(d<min&&(e.stun||0)<=0&&(e.knockbackT||0)<=0){
+      const nx=dx/d,ny=dy/d,push=min-d,speed=Math.hypot(e.vx||0,e.vy||0);e.x-=nx*push*.65;e.y-=ny*push*.65;p.x+=nx*push*.35;p.y+=ny*push*.35;
+      let contactKnock=18,damageMul=1;
+      if(e.archetype==='tank'){damageMul=2.2;contactKnock=42;}
+      if(e.archetype==='charger'){damageMul=1.25+Math.min(2.4,speed/170);contactKnock=45+speed*.22;e.beh='recover';e.behaviorT=.7;}
+      if(e.archetype==='thief'){
+        damageMul=.18;contactKnock=6;
+        if(!e.fleeing&&state.t>(e.stealCooldown||0)){const stolen=Math.min(state.diamonds,e.bounty||1);state.diamonds-=stolen;e.stolen=(e.stolen||0)+stolen;e.fleeing=true;e.stealCooldown=state.t+2;dbg(`[THIEF] ${e.glyph} stole ${stolen}♦ and fled`);}
+      }
+      p.vx+=nx*contactKnock;p.vy+=ny*contactKnock;
+      let hit=(.7+.55*Math.sqrt(e.power||1))*dt*damageMul;
+      if(e.kind==='eagle')hit*=1+Math.min(1.5,speed/260);
+      if(p.shield){const sh=metaFor('shield'),chance=Math.min(.75,.3+(sh.blockChance||0)*.05),block=Math.min(.8,.3+(sh.blockAmount||0)*.05);if(Math.random()<chance){hit*=1-block;p.vx+=nx*22;p.vy+=ny*22;e.vx-=nx*22;e.vy-=ny*22;dbg(`[SHIELD] blocked ${(block*100).toFixed(0)}% contact damage`);}}
+      p.hp=Math.max(0,p.hp-hit);if(e.kind==='spider'||e.kind==='snake'||e.zone==='swamp'||e.zone==='marsh')addStatus(p,'poison',.02*(e.power||1));
+    }
+  }
+}
 function getZone(x,y){const dx=x-MAP_CENTER.x,dy=y-MAP_CENTER.y,r=Math.hypot(dx,dy),h=toClockHour(Math.atan2(dy,dx)); return zones.find(z=>r>=z.ring.min&&r<z.ring.max&&inArc(h,z.arc))||null;}
 function projectWorld(wx,wy){ const dx=wx-state.camera.x, dy=wy-state.camera.y; const pxPerWorld=0.55; return {x:innerWidth*0.5 + dx*pxPerWorld, y:innerHeight*0.5 + dy*pxPerWorld, scale:1}; }
 
@@ -289,11 +333,19 @@ function enemyMotionProfile(e){
     pasture:{top:192,cruise:0.88,fast:760,slow:18,brake:980,turn:820},
     pawn:{top:188,cruise:0.9,fast:690,slow:14,brake:920,turn:760},
     crow:{top:276,cruise:0.84,fast:620,slow:12,brake:90,turn:185,flying:true},
-    turkey:{top:168,cruise:0.9,fast:455,slow:9,brake:78,turn:145,flying:true},
+    turkey:{top:138,cruise:.88,fast:390,slow:8,brake:520,turn:360},
     eagle:{top:334,cruise:0.82,fast:560,slow:11,brake:105,turn:170,flying:true},
     squirrel:{top:210,cruise:0.86,fast:820,slow:22,brake:1080,turn:940},
-    turtle:{top:104,cruise:0.92,fast:300,slow:7,brake:620,turn:480},
-    deer:{top:266,cruise:0.84,fast:620,slow:12,brake:860,turn:660},
+    turtle:{top:112,cruise:.9,fast:320,slow:8,brake:650,turn:480},
+    deer:{top:360,cruise:.94,fast:185,slow:22,brake:740,turn:95},
+    ram:{top:390,cruise:.94,fast:170,slow:24,brake:780,turn:88},
+    goat:{top:410,cruise:.94,fast:180,slow:25,brake:820,turn:92},
+    bull:{top:430,cruise:.95,fast:165,slow:25,brake:860,turn:78},
+    moose:{top:445,cruise:.95,fast:155,slow:24,brake:880,turn:72},
+    bear:{top:125,cruise:.88,fast:330,slow:8,brake:680,turn:430},
+    polarBear:{top:132,cruise:.88,fast:340,slow:8,brake:690,turn:440},
+    bat:{top:320,cruise:.84,fast:650,slow:12,brake:95,turn:195,flying:true},
+    raccoon:{top:235,cruise:.88,fast:760,slow:18,brake:920,turn:820},
     rabbit:{top:248,cruise:0.84,fast:920,slow:24,brake:1180,turn:980},
     innDrunk:{top:445,cruise:0.9,fast:1180,slow:36,brake:1320,turn:1040},
     casinoDrunk:{top:460,cruise:0.88,fast:1220,slow:38,brake:1360,turn:1080},
@@ -325,7 +377,7 @@ function fireEnemyProjectile(e){
   const p=state.player,dx=p.x-e.x,dy=p.y-e.y,d=Math.hypot(dx,dy)||1,ux=dx/d,uy=dy/d;
   let glyph=null,size=13,damage=0.7,knock=1.2,speed=220,vx=ux*speed,vy=uy*speed,life=2.4,color='#6b4525';
   if(e.kind==='squirrel'){glyph='🌰';size=14;damage=.65;knock=1.5;speed=230;vx=ux*speed;vy=uy*speed;e.shotT=2.1+Math.random()*1.8;}
-  else if(['crow','turkey','eagle'].includes(e.kind)){glyph='●';size=8;color='#fff';damage=e.kind==='eagle'?1.25:.65;knock=.6;vx=(e.vx||0)*.82+ux*105;vy=(e.vy||0)*.82+uy*105;e.shotT=1.8+Math.random()*2.4;}
+  else if(['crow','turkey','eagle','bat'].includes(e.kind)){glyph='●';size=8;color=e.kind==='bat'?'#d7d0c8':'#fff';damage=e.kind==='eagle'?1.25:.65;knock=.6;vx=(e.vx||0)*.82+ux*105;vy=(e.vy||0)*.82+uy*105;e.shotT=1.8+Math.random()*2.4;}
   else if(e.kind==='casinoDrunk'){glyph=Math.random()<.5?'♦':'🎲';size=16;color='#eee';damage=1.15;knock=1.1;speed=265;vx=ux*speed;vy=uy*speed;e.shotT=1.4+Math.random()*1.5;}
   else if(e.kind==='innDrunk'){glyph='🍾';size=17;color='#78a66d';damage=1.3;knock=1.4;speed=245;vx=ux*speed;vy=uy*speed;e.shotT=1.7+Math.random()*1.7;}
   else return;
@@ -360,6 +412,27 @@ function update(dt){const p=state.player; let dx=(state.keys.has('d')?1:0)-(stat
       e.wanderT=(e.wanderT||0)-dt;
       if(e.wanderT<=0||!e.wx){const wz=zones.find(z=>z.id===e.zone),pt=randomPointInZone(wz);e.wx=pt.x;e.wy=pt.y;e.wanderT=1.2+Math.random()*2.4;}
       const wx=e.wx-e.x,wy=e.wy-e.y,wd=Math.hypot(wx,wy)||1;dirX=wx/wd;dirY=wy/wd;top*=0.72;
+    } else if(e.archetype==='tank'){
+      e.behaviorT=(e.behaviorT||0)-dt;e.dashCooldown=Math.max(0,(e.dashCooldown||0)-dt);
+      if(e.beh==='dash'){dirX=e.dashX;dirY=e.dashY;top=390;if(e.behaviorT<=0){e.beh='stalk';e.dashCooldown=2.2;}}
+      else if(d<122&&e.dashCooldown<=0){e.beh='dash';e.behaviorT=.34;e.dashX=ax/d;e.dashY=ay/d;dirX=e.dashX;dirY=e.dashY;top=390;}
+      else top=profile.top;
+    } else if(e.archetype==='charger'){
+      e.behaviorT=(e.behaviorT||0)-dt;
+      if(!e.beh)e.beh='aim';
+      if(e.beh==='charge'){dirX=e.chargeX;dirY=e.chargeY;top=profile.top;if(e.behaviorT<=0||d<42){e.beh='recover';e.behaviorT=.72;}}
+      else if(e.beh==='recover'){top=0;if(e.behaviorT<=0){e.beh='aim';e.behaviorT=.48;}}
+      else {top=Math.min(115,profile.top*.3);if(e.behaviorT<=0){e.beh='charge';e.behaviorT=2.1;e.chargeX=ax/d;e.chargeY=ay/d;dirX=e.chargeX;dirY=e.chargeY;top=profile.top;}}
+    } else if(e.archetype==='thief'){
+      const home=zones.find(z=>z.id===e.zone),ex=e.x-MAP_CENTER.x,ey=e.y-MAP_CENTER.y,er=Math.hypot(ex,ey)||1,rx=ex/er,ry=ey/er;
+      if(e.fleeing){
+        if(e.fleeRadius===undefined)e.fleeRadius=(er-home.ring.min)<(home.ring.max-er)?home.ring.min+28:home.ring.max-28;
+        const outward=e.fleeRadius>er?1:-1;dirX=rx*outward;dirY=ry*outward;top=315;
+        if(Math.abs(er-e.fleeRadius)<34){e.fleeing=false;e.fleeRadius=undefined;e.stealCooldown=state.t+1.4;e.behaviorT=.7;}
+      }else{
+        const face=Math.atan2(state.mouse.y-innerHeight/2,state.mouse.x-innerWidth/2),fx=Math.cos(face),fy=Math.sin(face),side=((fx*ay-fy*ax)>0?1:-1),lateralX=-dirY*side,lateralY=dirX*side;
+        dirX=dirX*.62+lateralX*.78;dirY=dirY*.62+lateralY*.78;top=profile.top;
+      }
     } else if(e.kind==='innDrunk'||e.kind==='casinoDrunk'){
       const lateralX=-dirY,lateralY=dirX,sway=Math.sin(state.t*7+(e.x+e.y)*0.002)*0.52;dirX+=lateralX*sway;dirY+=lateralY*sway;top=profile.top;
     } else if(e.kind==='rabbit'){
@@ -373,8 +446,6 @@ function update(dt){const p=state.player; let dx=(state.keys.has('d')?1:0)-(stat
         if(e.spreadT<=0||e.spreadSide===undefined){const myAng=Math.atan2(e.y-p.y,e.x-p.x);let near=null,nearDiff=Infinity;for(const o of wolves){if(o===e)continue;const oa=Math.atan2(o.y-p.y,o.x-p.x),diff=Math.atan2(Math.sin(oa-myAng),Math.cos(oa-myAng)),ad=Math.abs(diff);if(ad<nearDiff){nearDiff=ad;near=diff;}}e.spreadSide=near===null?(Math.random()<0.5?-1:1):(near>0?-1:1);e.spreadT=1+Math.random()*1.2;}
         const myAng=Math.atan2(e.y-p.y,e.x-p.x),tx=-Math.sin(myAng)*e.spreadSide,ty=Math.cos(myAng)*e.spreadSide,approach=movingAway?0.72:0.38;dirX=tx*0.62+(ax/d)*approach;dirY=ty*0.62+(ay/d)*approach;top=movingAway?224:204;
       }
-    } else if(e.kind==='deer'){
-      const er=Math.hypot(e.x-MAP_CENTER.x,e.y-MAP_CENTER.y)||1;if(d<260){dirX=ax/d;dirY=ay/d;top=profile.top;}else{dirX=(e.x-MAP_CENTER.x)/er;dirY=(e.y-MAP_CENTER.y)/er;top=205;}
     }
     if((e.stun||0)>0){e.stun-=dt;dirX=0;dirY=0;top=0;}
     if((e.avoidT||0)>0){e.avoidT-=dt;dirX=e.avoidX;dirY=e.avoidY;top*=0.88;}
@@ -407,6 +478,7 @@ function applyHit(target, weapon, scale=1){
 }
 
 function knockEnemy(e,angle,impulse){
+  impulse*=e.knockResist??1;
   const nx=Math.cos(angle),ny=Math.sin(angle),kick=Math.min(14,impulse*0.045);
   e.vx=(e.vx||0)+nx*impulse;e.vy=(e.vy||0)+ny*impulse;e.x+=nx*kick;e.y+=ny*kick;
   e.knockbackT=Math.max(e.knockbackT||0,Math.min(0.42,0.1+impulse/620));
@@ -612,7 +684,7 @@ function render(){ctx.clearRect(0,0,innerWidth,innerHeight); drawHexBackground()
  for(const t of state.terrain){const p=projectWorld(t.x,t.y); if(t.color)ctx.fillStyle=t.color; else ctx.fillStyle='#fff'; if(t.stump){ctx.fillStyle='#4a2b1a';ctx.fillRect(p.x-5,p.y-5,10,10);} else {ctx.font=`${t.size|| (t.glyph==='♜'?22:16)}px serif`; ctx.fillText(t.glyph,p.x,p.y);} }
  for(const item of state.deployables){const p=projectWorld(item.x,item.y);ctx.font=item.type==='decoy'?'25px serif':'19px serif';ctx.fillStyle=item.type==='caltrop'?'#d7d7d7':'#fff';ctx.fillText(item.type==='decoy'?'🛡️':'✣',p.x,p.y);}
  if(state.offerNpc){const age=Math.max(0,state.t-(state.offerNpc.born??state.t)),grow=Math.min(1,age/0.9),orbit=10*(1-grow),p=projectWorld(state.offerNpc.x+Math.cos(age*8)*orbit,state.offerNpc.y+Math.sin(age*8)*orbit);ctx.save();ctx.translate(p.x,p.y);ctx.scale(grow,grow);ctx.font='28px serif';ctx.fillStyle='#fff';ctx.fillText(state.offerNpc.glyph,0,0);ctx.font='12px sans-serif';ctx.fillText('upgrade?',-12,14);ctx.restore();}
- for(const e of state.enemies){const p=projectWorld(e.x,e.y);ctx.font='16px serif';ctx.fillStyle='#fff';ctx.fillText(e.glyph,p.x,p.y);if(e.weapon){ctx.font='12px serif';ctx.fillText(e.weapon,p.x+12,p.y-8);}drawStatusIcons(e,p.x,p.y);}
+ for(const e of state.enemies){const p=projectWorld(e.x,e.y);ctx.font=`${e.archetype==='tank'?24:e.archetype==='charger'?19:16}px serif`;ctx.fillStyle='#fff';ctx.fillText(e.glyph,p.x,p.y);if(e.weapon){ctx.font='12px serif';ctx.fillText(e.weapon,p.x+12,p.y-8);}drawStatusIcons(e,p.x,p.y);}
  for(const item of state.pickups){const q=projectWorld(item.x,item.y);ctx.fillStyle=item.color;ctx.font=item.ammo==='arrows'?'18px serif':'14px serif';if(item.ammo==='arrows')ctx.fillText(item.glyph,q.x,q.y);else{ctx.beginPath();ctx.arc(q.x,q.y,3.5,0,Math.PI*2);ctx.fill();}}
  for(const pr of state.projectiles){const p=projectWorld(pr.x,pr.y),a=pr.glyph==='triangle'?(pr.rotation||0):Math.atan2(pr.vy,pr.vx); ctx.save();ctx.translate(p.x,p.y);ctx.rotate(a);ctx.fillStyle=pr.color||'#111'; if(pr.glyph==='triangle'){ctx.beginPath();ctx.moveTo(pr.size*0.7,0);ctx.lineTo(-pr.size*0.45,-pr.size*0.45);ctx.lineTo(-pr.size*0.45,pr.size*0.45);ctx.closePath();ctx.fill();} else if(pr.glyph!=='●'){ctx.font=`${pr.size}px serif`;ctx.fillText(pr.glyph,0,0);} else {ctx.beginPath();ctx.arc(0,0,pr.size*0.25,0,Math.PI*2);ctx.fill();} ctx.restore(); if(pr.element){ctx.font='13px serif';ctx.fillText(ELEMENT_GLYPHS[pr.element],p.x+9,p.y-10);}}
  const pp=projectWorld(state.player.x,state.player.y),aim=Math.atan2(state.mouse.y-innerHeight/2,state.mouse.x-innerWidth/2),w=weaponDef(); ctx.textAlign='center';ctx.textBaseline='middle'; if(state.mount==='horse'&&state.player.unlocked.has('horse')){ctx.font='30px serif';ctx.fillText('🐎',pp.x,pp.y+8);} ctx.font='20px serif';ctx.fillStyle='#fff';ctx.fillText('🙂',pp.x,pp.y); if(state.player.shield){ctx.font='18px serif';ctx.fillText('🛡️',pp.x-18,pp.y+4);}
