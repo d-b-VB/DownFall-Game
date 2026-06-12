@@ -54,7 +54,7 @@ const zones = [
 ];
 
 const state = { mode:'menu',glyphWeapon:'club',t:0,last:0,keys:new Set(),mouse:{x:0,y:0,down:false,held:0},camera:{x:MAP_CENTER.x,y:MAP_CENTER.y},player:null,projectiles:[],pickups:[],enemies:[],terrain:[],waves:{},mount:'foot',debug:[],diamonds:0,ammo:{arrows:0,bolts:0,jars:0,pellets:0,cannonballs:0},elements:{fire:0,ice:0,poison:0},activeElement:null,meta:{},pendingReward:null,offerNpc:null,currentZone:null,run:1,hazards:[],deployables:[],feedback:[],hudFlash:{hp:0,diamonds:0,lastHp:null,lastDiamonds:null},fungusRespawns:{},nextEnemyId:1,finance:{savings:0,debt:0,trust:0,trustAvailable:0,amounts:{savings:5,loan:10,trust:5}},casinoWagers:{coin:1,dice:1,card:1},shopPurchases:{} };
-const BUILD_VERSION = 'v0.13.1 build 2026-06-12 14:08 UTC';
+const BUILD_VERSION = 'v0.13.3 build 2026-06-12 15:02 UTC';
 const wrap12=h=>(h%12+12)%12; const inArc=(h,[s,e])=>{h=wrap12(h);s=wrap12(s);e=wrap12(e);if(s===e)return true;return s<=e?(h>=s&&h<e):(h>=s||h<e)}; const toClockHour=t=>wrap12((t*6/Math.PI)+3);
 const DEPLOYABLE_TOOLS={caltrop:{id:'caltrop',glyph:'✣',kind:'deployable',cooldown:.2},decoy:{id:'decoy',glyph:'🛡️',kind:'deployable',cooldown:.2}};
 const weaponDef=()=>weapons.find(w=>w.id===state.player.weapon)||DEPLOYABLE_TOOLS[state.player.weapon];
@@ -96,6 +96,18 @@ function effectiveWeapon(base){
 function rewardWeaponForZone(zone){return zone.id==='smith'?(SMITH_UNLOCKS.find(u=>!state.player.unlocked.has(u))||'sword'):zone.id==='foundry'?(FOUNDRY_UNLOCKS.find(u=>!state.player.unlocked.has(u))||'cannon'):(zone.element||zone.unlock||state.player.weapon);}
 function unlockCost(zone){return zone.id==='orchard'?0:14;}
 function upgradeCost(target,stat,base=15){return base+5*(metaFor(target)[stat]||0);}
+const BASE_ENEMY_BOUNTY = 1;
+function bountyRate(){return BASE_ENEMY_BOUNTY+(metaFor('bank').bounty||0);}
+function enemyBounty(enemy){
+  if(enemy.kind==='mushroom'&&enemy.propagated&&enemy.growT>0)return 0;
+  const scaled=bountyRate()*(enemy.bountyMultiplier??1);
+  return enemy.archetype==='fly'?Math.ceil(scaled):scaled;
+}
+function enemyCountForWave(zone,wave){const radTier=zone.ring.min/RADIUS_UNIT;return 6+Math.min(24,Math.floor(wave*1.25+radTier*2.1));}
+function bankBountyUpgradeCost(){
+  const bank=zones.find(zone=>zone.id==='bank'),firstWaveGross=enemyCountForWave(bank,1)*bountyRate();
+  return Math.ceil(firstWaveGross*1.25);
+}
 function upgradeLabel(id,stat,cost){
   const names={swingSpeed:'swing speed',cooldown:'cooldown time',reach:'reach',shatterSpeed:'shatter speed'};
   if(stat==='shards')return `${id} +1 shard (${cost}♦)`;
@@ -105,7 +117,7 @@ function upgradeLabel(id,stat,cost){
 function upgradeOption(target,stat,kind='weapon',base=15){const cost=upgradeCost(target,stat,base);return{[kind]:target,stat,cost,label:upgradeLabel(target,stat,cost)};}
 function merchantOptions(zone,wave){
   const cash={diamonds:3+wave,label:`take ${3+wave}♦`};
-  if(zone.id==='bank'){const o=upgradeOption('bank','bounty','merchant',20);o.label=`banker: +1♦ per enemy (${o.cost}♦)`;return[o,cash];}
+  if(zone.id==='bank'){const cost=bankBountyUpgradeCost(),o={merchant:'bank',stat:'bounty',cost,label:`banker: bounty ${bountyRate()}♦ → ${bountyRate()+1}♦ (${cost}♦)`};return[o,cash];}
   if(zone.id==='tanner'){const accel=upgradeOption('foot','accel','merchant',12),speed=upgradeOption('foot','speed','merchant',18);accel.label=`tanner: +10% foot acceleration (${accel.cost}♦)`;speed.label=`tanner: +10% foot top speed (${speed.cost}♦)`;return[accel,speed,cash];}
   if(zone.id==='inn'){const o=upgradeOption('player','maxHp','merchant',20);o.label=`innkeeper: +1 max HP (${o.cost}♦)`;return[o,cash];}
   if(zone.id==='casino'){const o=upgradeOption('casino','jackpot','merchant',18);o.label=`casino: improve hidden jackpot odds (${o.cost}♦)`;return[o,cash];}
@@ -286,9 +298,9 @@ function linkFireAntChains(enemies){
 }
 function spawnWave(zone){
   const wave=state.waves[zone.id]?.wave||1,radTier=zone.ring.min/RADIUS_UNIT,difficulty=Math.pow(1.65,radTier),enemyPower=1.25*Math.pow(2.15,radTier)*Math.pow(1.1,wave*3);
-  state.waves[zone.id].spawned=true;state.waves[zone.id].fungusRecovered=false;const count=6+Math.min(24,Math.floor(wave*1.25+radTier*2.1));let hp=5*difficulty*(1+wave*.08);if(zone.id==='orchard')hp*=.83;if(zone.id==='fletcher')hp*=.55;
+  state.waves[zone.id].spawned=true;state.waves[zone.id].fungusRecovered=false;const count=enemyCountForWave(zone,wave);let hp=5*difficulty*(1+wave*.08);if(zone.id==='orchard')hp*=.83;if(zone.id==='fletcher')hp*=.55;
   const spawned=[];
-  for(let i=0;i<count;i++){const pt=spawnPointOuterEdge(zone,i,count),v=enemyVariant(zone,wave,i),standardBounty=1+Math.floor((wave-1)/2)+Math.floor(radTier/2),enemy={id:state.nextEnemyId++,x:pt.x,y:pt.y,hp:hp*v.hpMul,maxHp:hp*v.hpMul,status:{},glyph:v.glyph,kind:v.kind,archetype:v.archetype,knockResist:v.knockResist,visualScale:v.visualScale,weapon:v.weapon,zone:zone.id,wave,minR:zone.ring.min,vx:0,vy:0,bounty:v.archetype==='fly'?Math.ceil(standardBounty/2):standardBounty,hop:Math.random()*.8,power:enemyPower*v.powMul,shotT:1+Math.random()*2,behaviorT:Math.random()};state.enemies.push(enemy);spawned.push(enemy);}
+  for(let i=0;i<count;i++){const pt=spawnPointOuterEdge(zone,i,count),v=enemyVariant(zone,wave,i),enemy={id:state.nextEnemyId++,x:pt.x,y:pt.y,hp:hp*v.hpMul,maxHp:hp*v.hpMul,status:{},glyph:v.glyph,kind:v.kind,archetype:v.archetype,knockResist:v.knockResist,visualScale:v.visualScale,weapon:v.weapon,zone:zone.id,wave,minR:zone.ring.min,vx:0,vy:0,bountyMultiplier:v.archetype==='fly'?.5:1,hop:Math.random()*.8,power:enemyPower*v.powMul,shotT:1+Math.random()*2,behaviorT:Math.random()};state.enemies.push(enemy);spawned.push(enemy);}
   linkFireAntChains(spawned);
   dbg(`[WAVE] ${zone.name} wave ${wave} enemies=${count} hp=${hp.toFixed(1)} power=${enemyPower.toFixed(2)}`);
 }
@@ -307,7 +319,7 @@ function resolveEnemySpacing(dt){
       if(e.archetype==='charger'){damageMul=1.25+Math.min(2.4,speed/170);contactKnock=45+speed*.22;e.beh='recover';e.behaviorT=.7;}
       if(e.archetype==='thief'){
         damageMul=.18;contactKnock=6;
-        if(!e.fleeing&&state.t>(e.stealCooldown||0)){const stolen=Math.min(state.diamonds,e.bounty||1);state.diamonds-=stolen;if(stolen>0)spawnSuitFeedback(p.x,p.y+14,'♦',stolen,'#ff6677',{negative:true,direction:1,mergeKey:'diamondLoss'});e.stolen=(e.stolen||0)+stolen;e.fleeing=true;e.stealCooldown=state.t+2;dbg(`[THIEF] ${e.glyph} stole ${stolen}♦ and fled`);}
+        if(!e.fleeing&&state.t>(e.stealCooldown||0)){const stolen=Math.min(state.diamonds,enemyBounty(e));state.diamonds-=stolen;if(stolen>0)spawnSuitFeedback(p.x,p.y+14,'♦',stolen,'#ff6677',{negative:true,direction:1,mergeKey:'diamondLoss'});e.stolen=(e.stolen||0)+stolen;e.fleeing=true;e.stealCooldown=state.t+2;dbg(`[THIEF] ${e.glyph} stole ${stolen}♦ and fled`);}
       }
       p.vx+=nx*contactKnock;p.vy+=ny*contactKnock;
       let hit=(.7+.55*Math.sqrt(e.power||1))*dt*damageMul;
@@ -530,7 +542,7 @@ function plantMushroom(x,y,zoneId,onTree=false){
   const zone=zones.find(z=>z.id===zoneId)||getZone(x,y);if(!zone||!['marsh','swamp','sawmill'].includes(zone.id))return;
   if(state.enemies.filter(e=>e.kind==='mushroom'&&e.zone===zone.id).length>=12)return;
   const wave=state.waves[zone.id]?.wave||1,radTier=zone.ring.min/RADIUS_UNIT,baseHp=5*Math.pow(1.65,radTier)*(1+wave*.08)*.55;
-  state.enemies.push({id:state.nextEnemyId++,x,y:y-(onTree?8:0),hp:baseHp,maxHp:baseHp,status:{},glyph:'🍄',kind:'mushroom',archetype:'mushroom',knockResist:.85,zone:zone.id,wave,minR:zone.ring.min,vx:0,vy:0,bounty:0,power:.45*Math.pow(2.15,radTier),growT:2.5,sporeCooldown:1.4});
+  state.enemies.push({id:state.nextEnemyId++,x,y:y-(onTree?8:0),hp:baseHp,maxHp:baseHp,status:{},glyph:'🍄',kind:'mushroom',archetype:'mushroom',knockResist:.85,zone:zone.id,wave,minR:zone.ring.min,vx:0,vy:0,bountyMultiplier:1,propagated:true,power:.45*Math.pow(2.15,radTier),growT:2.5,sporeCooldown:1.4});
 }
 function scheduleFungusRecovery(zoneId){
   const wave=state.waves[zoneId];if(!wave||wave.fungusRecovered||state.fungusRespawns[zoneId])return;
@@ -722,7 +734,7 @@ function hitChecks(){
   for(const fallen of dead.filter(e=>e.kind==='fireAnt'))for(const ant of state.enemies)if(ant.followId===fallen.id)ant.followId=null;
   state.enemies=state.enemies.filter(e=>{
     if(e.hp>0)return true;
-    let bounty=(e.bounty??2)+(metaFor('bank').bounty||0);const jp=metaFor('casino').jackpot||0;
+    let bounty=enemyBounty(e);const jp=metaFor('casino').jackpot||0;
     if(jp&&Math.random()<Math.min(.25,.015*jp)){const bonus=bounty*(3+jp);bounty+=bonus;dbg(`[JACKPOT] ${e.glyph} +${bonus}♦`);}
     const grossBounty=bounty,debtPay=Math.min(bounty,state.finance.debt);state.finance.debt-=debtPay;bounty-=debtPay;state.diamonds+=bounty;if(bounty>0)spawnSuitFeedback(e.x,e.y-14,'♦',bounty,'#68d8ff');if(debtPay>0)spawnSuitFeedback(e.x,e.y+8,'♦',debtPay,'#ff6677',{negative:true,direction:1});dbg(`[BOUNTY] ${e.glyph} +${bounty}♦${debtPay?` · debt -${debtPay}♦`:''} total=${state.diamonds}`);return false;
   });
