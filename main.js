@@ -1,5 +1,5 @@
 const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
+const ctx = NotoEmojiRenderer.install(canvas.getContext('2d'));
 const ui = document.getElementById('ui');
 const menu = document.getElementById('menu');
 
@@ -51,7 +51,7 @@ const zones = [
 ];
 
 const state = { mode:'menu',glyphWeapon:'club',t:0,last:0,keys:new Set(),mouse:{x:0,y:0,down:false,held:0},camera:{x:MAP_CENTER.x,y:MAP_CENTER.y},player:null,projectiles:[],pickups:[],enemies:[],terrain:[],waves:{},mount:'foot',debug:[],diamonds:0,ammo:{arrows:0,bolts:0,jars:0,pellets:0,cannonballs:0},elements:{fire:0,ice:0,poison:0},activeElement:null,meta:{},pendingReward:null,offerNpc:null,currentZone:null,run:1,hazards:[],deployables:[],feedback:[],hudFlash:{hp:0,diamonds:0,lastHp:null,lastDiamonds:null},fungusRespawns:{},nextEnemyId:1,finance:{savings:0,debt:0,trust:0,trustAvailable:0,amounts:{savings:5,loan:10,trust:5}},casinoWagers:{coin:1,dice:1,card:1},shopPurchases:{} };
-const BUILD_VERSION = 'v0.12.0 build 2026-06-12 04:14 UTC';
+const BUILD_VERSION = 'v0.13.0 build 2026-06-12 13:42 UTC';
 const wrap12=h=>(h%12+12)%12; const inArc=(h,[s,e])=>{h=wrap12(h);s=wrap12(s);e=wrap12(e);if(s===e)return true;return s<=e?(h>=s&&h<e):(h>=s||h<e)}; const toClockHour=t=>wrap12((t*6/Math.PI)+3);
 const DEPLOYABLE_TOOLS={caltrop:{id:'caltrop',glyph:'✣',kind:'deployable',cooldown:.2},decoy:{id:'decoy',glyph:'🛡️',kind:'deployable',cooldown:.2}};
 const weaponDef=()=>weapons.find(w=>w.id===state.player.weapon)||DEPLOYABLE_TOOLS[state.player.weapon];
@@ -72,7 +72,19 @@ function upgradeStatsFor(id){
   if(id==='sling')return SLING_UPGRADE_SCHEDULE;
   return MELEE_WEAPONS.has(id)?MELEE_UPGRADE_SCHEDULE:RANGED_UPGRADE_SCHEDULE;
 }
-const ZONE_NPCS = {bank:'🏦',tanner:'🧵',inn:'🍲',casino:'🎰',farrier:'🐴',armorer:'🛡️',orchard:'👨‍🌾',creek:'🧒',axe:'🧔',pasture:'🐎',smith:'🛡️',fletcher:'🏹',sawmill:'🪚',marches:'♜',volcano:'🧙‍♂️',frost:'🧙',swamp:'🧙‍♀️',foundry:'🙏'};
+const ZONE_NPCS = {bank:'🏦',tanner:'🧵',inn:'🍲',casino:'🎲',farrier:'🐴',armorer:'🛡️',orchard:'👨‍🌾',creek:'🧒',axe:'🧔',pasture:'🐎',smith:'🛡️',fletcher:'🏹',sawmill:'🪚',marches:'♜',volcano:'🧙‍♂️',frost:'🧙',swamp:'🧙‍♀️',foundry:'🙏'};
+const NOTO_GAME_GLYPHS = [
+  '🙂','🐎','🛡️','🪢','🪓','🗡️','🏹','🔥','❄️','☠️','🏺','🧥','🧪','✣',
+  ...Object.values(ZONE_NPCS),...zones.map(zone=>zone.enemy),
+  '🐛','🐿️','🪰','🐸','🐢','🦀','𓆦','🕷️','🦌','🐝','🐺','🐏','🐇',
+  '🐦‍⬛','🦃','🦅','🐀','💃','🕺','🤢','🐻','🐂','🦝','🥷','🫏',
+  '🦊','🦉','🐧','🐻‍❄️','🫎','🍄','🦟','🦂','🐍','🪲','🐜','🦎',
+  '🐐','🐉','🦇','☃️','🧌','🐊','👻','🧟','🔔','🗿','👹',
+  '🌲','🌳','🌴','🌵','🌿','🌉','🌀','🌋','🏔️','🏠','🏦','🧱','🪨','🪵',
+  '🌰','🍆','🍑','🍎','🍖','🍲','🧀','🎲','🃏','🔨','⚙️','🧲'
+];
+NotoEmojiRenderer.preload([...new Set(NOTO_GAME_GLYPHS)]);
+
 function metaFor(id){if(!state.meta[id])state.meta[id]={speed:0,range:0,reach:0,swingSpeed:0,cooldown:0,damage:0,knockback:0,accel:0,shards:0,shatterSpeed:0,poison:0,poisonResist:0,potency:0,dose:0,duration:0,slow:0,maxHp:0,bounty:0,jackpot:0,blockChance:0,blockAmount:0};return state.meta[id];}
 function effectiveWeapon(base){
   const m=metaFor(base.id),melee=MELEE_WEAPONS.has(base.id);
@@ -183,10 +195,7 @@ function enemyVariant(zone,wave,i){
   if(zone.id==='orchard'&&wave>1&&i%3===0)set('🐿️','squirrel',.65,.9);
   if(zone.id==='creek'&&wave>1&&i%4===0)set('🐢','turtle',3.2,2.1,'tank',.5);
   if(zone.id==='creek'&&wave>=2&&i%6===1)set('🦀','crab',1.15,1.15);
-  if(zone.id==='creek'&&wave>=2&&i%6===5)set('🐟','creekFish',.62,.75);
   if(zone.id==='axe'&&wave>1&&i%3===0)set('🦌','deer',1.1,1.65,'charger',.72);
-  if(zone.id==='axe'&&wave>=2&&i%5===1)set('🐗','boar',1.45,1.65,'charger',.65);
-  if(zone.id==='axe'&&wave>=2&&i%5===4)set('🐺','axeWolf',.9,1.2);
   if(zone.id==='pasture'&&wave>1&&i%4===0)set('🐏','ram',1.3,1.8,'charger',.62);
   if(zone.id==='fletcher'){
     const opts=wave<2?['🐦‍⬛']:wave<4?['🐦‍⬛','🦃']:['🐦‍⬛','🦃','🦅'];glyph=opts[i%opts.length];
@@ -208,8 +217,8 @@ function enemyVariant(zone,wave,i){
     else if(i%5===1)set('🐿️','squirrel',.7,.85);
     else set('🪰','tanneryFly',.24,.2,'fly',.76,.72);
   }
-  if(zone.id==='inn')i%2===0?set('🐀','innRat',.5,.45):set(i%4===1?'💃':'🕺','innReveler',.9,.8,'reveler',.95);
-  if(zone.id==='casino')i%2===0?set('🐀','casinoRat',.5,.45):set(i%4===1?'💃':'🕺','casinoReveler',.9,.8,'reveler',.95);
+  if(zone.id==='inn'){const pick=i%4;if(pick===0)set('🐀','innRat',.5,.45);else if(pick===3)set('🤢','innDrunk',1,1);else set(pick===1?'💃':'🕺','innReveler',.9,.8,'reveler',.95);}
+  if(zone.id==='casino'){const pick=i%4;if(pick===0)set('🐀','casinoRat',.5,.45);else if(pick===3)set('🤢','casinoDrunk',1,1);else set(pick===1?'💃':'🕺','casinoReveler',.9,.8,'reveler',.95);}
   if(zone.id==='farrier'){
     set('♙','farrierPawn',1,1,'standard',1,1,'🔨');
     if(wave>=2&&i%6===0)set('♞','farrierKnight',1.4,1.8,'charger',.62);
@@ -228,8 +237,8 @@ function enemyVariant(zone,wave,i){
     if(wave>=3&&i%8===7)set('🐻‍❄️','polarBear',3.8,2.5,'tank',.5);
   }
   if(zone.id==='sawmill'){
-    if(wave>=2&&i%5===0)set('🐻','bear',3.6,2.35,'tank',.5);
-    else if(wave>=2&&i%5===1)set('🫎','moose',1.8,2.15,'charger',.48);
+    if(i%2===0)set('🐻','bear',3.6,2.35,'tank',.5);
+    else set('🫎','moose',1.8,2.15,'charger',.48);
   }
   if(zone.id==='marsh'){if(i%3===0)set('🍄','mushroom',.75,.65,'mushroom',.85);else if(wave>=2&&i%5===2)set('🦟','mosquito',.32,.3,'fly',.76);}
   if(zone.id==='marches'){
@@ -243,7 +252,7 @@ function enemyVariant(zone,wave,i){
     if(wave>=3&&wave%3===0&&i===0)set('🐉','volcanoDragon',5.2,3.4,'tank',.38,1.8);
   }
   if(zone.id==='mine'){
-    if(wave>=2&&i%4===0)set('🐻','bear',3.5,2.3,'tank',.5);else if(wave>=2&&i%4===1)set('🐐','goat',1.25,1.8,'charger',.65);else if(wave>=2&&i%4===2)set('🦇','bat',.65,.9,'bird',.92);
+    const pick=i%3;if(pick===0)set('🐻','bear',3.5,2.3,'tank',.5);else if(pick===1)set('🐐','goat',1.25,1.8,'charger',.65);else set('🦇','bat',.65,.9,'bird',.92);
   }
   if(zone.id==='frost'){
     const pick=i%6;if(pick<=1)set('☃️','snowman',1.15,1.15);else if(pick===2)set('🦉','snowyOwl',.68,.82,'bird',.88);else if(pick===3)set('🐐','goat',1.3,1.9,'charger',.62);else if(pick===4)set('🧌','yeti',2.4,2,'tank',.5);else set('🐧','penguin',1.05,.85);
@@ -276,7 +285,7 @@ function spawnWave(zone){
   const wave=state.waves[zone.id]?.wave||1,radTier=zone.ring.min/RADIUS_UNIT,difficulty=Math.pow(1.65,radTier),enemyPower=1.25*Math.pow(2.15,radTier)*Math.pow(1.1,wave*3);
   state.waves[zone.id].spawned=true;state.waves[zone.id].fungusRecovered=false;const count=6+Math.min(24,Math.floor(wave*1.25+radTier*2.1));let hp=5*difficulty*(1+wave*.08);if(zone.id==='orchard')hp*=.83;if(zone.id==='fletcher')hp*=.55;
   const spawned=[];
-  for(let i=0;i<count;i++){const pt=spawnPointOuterEdge(zone,i,count),v=enemyVariant(zone,wave,i),enemy={id:state.nextEnemyId++,x:pt.x,y:pt.y,hp:hp*v.hpMul,maxHp:hp*v.hpMul,status:{},glyph:v.glyph,kind:v.kind,archetype:v.archetype,knockResist:v.knockResist,visualScale:v.visualScale,weapon:v.weapon,zone:zone.id,wave,minR:zone.ring.min,vx:0,vy:0,bounty:1+Math.floor((wave-1)/2)+Math.floor(radTier/2),hop:Math.random()*.8,power:enemyPower*v.powMul,shotT:1+Math.random()*2,behaviorT:Math.random()};state.enemies.push(enemy);spawned.push(enemy);}
+  for(let i=0;i<count;i++){const pt=spawnPointOuterEdge(zone,i,count),v=enemyVariant(zone,wave,i),standardBounty=1+Math.floor((wave-1)/2)+Math.floor(radTier/2),enemy={id:state.nextEnemyId++,x:pt.x,y:pt.y,hp:hp*v.hpMul,maxHp:hp*v.hpMul,status:{},glyph:v.glyph,kind:v.kind,archetype:v.archetype,knockResist:v.knockResist,visualScale:v.visualScale,weapon:v.weapon,zone:zone.id,wave,minR:zone.ring.min,vx:0,vy:0,bounty:v.archetype==='fly'?Math.ceil(standardBounty/2):standardBounty,hop:Math.random()*.8,power:enemyPower*v.powMul,shotT:1+Math.random()*2,behaviorT:Math.random()};state.enemies.push(enemy);spawned.push(enemy);}
   linkFireAntChains(spawned);
   dbg(`[WAVE] ${zone.name} wave ${wave} enemies=${count} hp=${hp.toFixed(1)} power=${enemyPower.toFixed(2)}`);
 }
@@ -710,7 +719,7 @@ function hitChecks(){
   for(const fallen of dead.filter(e=>e.kind==='fireAnt'))for(const ant of state.enemies)if(ant.followId===fallen.id)ant.followId=null;
   state.enemies=state.enemies.filter(e=>{
     if(e.hp>0)return true;
-    let bounty=(e.bounty||2)+(metaFor('bank').bounty||0);const jp=metaFor('casino').jackpot||0;
+    let bounty=(e.bounty??2)+(metaFor('bank').bounty||0);const jp=metaFor('casino').jackpot||0;
     if(jp&&Math.random()<Math.min(.25,.015*jp)){const bonus=bounty*(3+jp);bounty+=bonus;dbg(`[JACKPOT] ${e.glyph} +${bonus}♦`);}
     const grossBounty=bounty,debtPay=Math.min(bounty,state.finance.debt);state.finance.debt-=debtPay;bounty-=debtPay;state.diamonds+=bounty;if(bounty>0)spawnSuitFeedback(e.x,e.y-14,'♦',bounty,'#68d8ff');if(debtPay>0)spawnSuitFeedback(e.x,e.y+8,'♦',debtPay,'#ff6677',{negative:true,direction:1});dbg(`[BOUNTY] ${e.glyph} +${bounty}♦${debtPay?` · debt -${debtPay}♦`:''} total=${state.diamonds}`);return false;
   });
