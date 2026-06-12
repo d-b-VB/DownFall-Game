@@ -54,7 +54,7 @@ const zones = [
 ];
 
 const state = { mode:'menu',glyphWeapon:'club',t:0,last:0,keys:new Set(),mouse:{x:0,y:0,down:false,held:0},camera:{x:MAP_CENTER.x,y:MAP_CENTER.y},player:null,projectiles:[],pickups:[],enemies:[],terrain:[],waves:{},mount:'foot',debug:[],diamonds:0,ammo:{arrows:0,bolts:0,jars:0,pellets:0,cannonballs:0},elements:{fire:0,ice:0,poison:0},activeElement:null,meta:{},pendingReward:null,offerNpc:null,currentZone:null,run:1,hazards:[],deployables:[],feedback:[],hudFlash:{hp:0,diamonds:0,lastHp:null,lastDiamonds:null},fungusRespawns:{},nextEnemyId:1,finance:{savings:0,debt:0,trust:0,trustAvailable:0,amounts:{savings:5,loan:10,trust:5}},casinoWagers:{coin:1,dice:1,card:1},shopPurchases:{} };
-const BUILD_VERSION = 'v0.13.3 build 2026-06-12 15:02 UTC';
+const BUILD_VERSION = 'v0.13.4 build 2026-06-12 15:18 UTC';
 const wrap12=h=>(h%12+12)%12; const inArc=(h,[s,e])=>{h=wrap12(h);s=wrap12(s);e=wrap12(e);if(s===e)return true;return s<=e?(h>=s&&h<e):(h>=s||h<e)}; const toClockHour=t=>wrap12((t*6/Math.PI)+3);
 const DEPLOYABLE_TOOLS={caltrop:{id:'caltrop',glyph:'✣',kind:'deployable',cooldown:.2},decoy:{id:'decoy',glyph:'🛡️',kind:'deployable',cooldown:.2}};
 const weaponDef=()=>weapons.find(w=>w.id===state.player.weapon)||DEPLOYABLE_TOOLS[state.player.weapon];
@@ -139,7 +139,7 @@ function buildReward(zone){
   else if(zone.id==='marches')options=[{diamonds:3+wave,label:`soldier recruitment coming soon — take ${3+wave}♦`}];
   else if(zone.id==='smith'&&SMITH_UNLOCKS.some(u=>!state.player.unlocked.has(u))){const next=SMITH_UNLOCKS.find(u=>!state.player.unlocked.has(u)),cost=unlockCost(zone);options=[{unlock:next,cost,label:`unlock ${next} (${cost}♦)`},cash];}
   else if(zone.id==='foundry'&&FOUNDRY_UNLOCKS.some(u=>!state.player.unlocked.has(u))){const next=FOUNDRY_UNLOCKS.find(u=>!state.player.unlocked.has(u)),cost=unlockCost(zone);options=[{unlock:next,cost,label:`unlock ${next} (${cost}♦)`},cash];}
-  else if(wave===1&&zone.unlock&&!state.player.unlocked.has(zone.unlock)){const cost=unlockCost(zone);options=[{unlock:zone.unlock,cost,label:`unlock ${zone.unlock} (${cost}♦)`},cash];}
+  else if(zone.unlock&&!state.player.unlocked.has(zone.unlock)){const cost=unlockCost(zone);options=[{unlock:zone.unlock,cost,label:`unlock ${zone.unlock} (${cost}♦)`},cash];}
   else if(zone.element&&!state.player.unlockedElements.has(zone.element)){const cost=unlockCost(zone);options=[{elementUnlock:zone.element,cost,label:`unlock ${zone.element} (${cost}♦)`},cash];}
   else if(zone.element){const pool=ELEMENT_UPGRADE_STATS[zone.element],[a,b]=distinctScheduledStats(pool,wave);options=[upgradeOption(zone.element,a,'element'),upgradeOption(zone.element,b,'element'),cash];}
   else{const pool=upgradeStatsFor(rewardId),[a,b]=distinctScheduledStats(pool,wave);options=[upgradeOption(rewardId,a),upgradeOption(rewardId,b),cash];}
