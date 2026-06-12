@@ -2,6 +2,9 @@ const canvas = document.getElementById('game');
 const ctx = NotoEmojiRenderer.install(canvas.getContext('2d'));
 const ui = document.getElementById('ui');
 const menu = document.getElementById('menu');
+const loading = document.getElementById('loading');
+const loadingBar = document.getElementById('loading-bar');
+const loadingStatus = document.getElementById('loading-status');
 
 const CELL = 48;
 const WORLD_SCALE = 4;
@@ -51,7 +54,7 @@ const zones = [
 ];
 
 const state = { mode:'menu',glyphWeapon:'club',t:0,last:0,keys:new Set(),mouse:{x:0,y:0,down:false,held:0},camera:{x:MAP_CENTER.x,y:MAP_CENTER.y},player:null,projectiles:[],pickups:[],enemies:[],terrain:[],waves:{},mount:'foot',debug:[],diamonds:0,ammo:{arrows:0,bolts:0,jars:0,pellets:0,cannonballs:0},elements:{fire:0,ice:0,poison:0},activeElement:null,meta:{},pendingReward:null,offerNpc:null,currentZone:null,run:1,hazards:[],deployables:[],feedback:[],hudFlash:{hp:0,diamonds:0,lastHp:null,lastDiamonds:null},fungusRespawns:{},nextEnemyId:1,finance:{savings:0,debt:0,trust:0,trustAvailable:0,amounts:{savings:5,loan:10,trust:5}},casinoWagers:{coin:1,dice:1,card:1},shopPurchases:{} };
-const BUILD_VERSION = 'v0.13.0 build 2026-06-12 13:42 UTC';
+const BUILD_VERSION = 'v0.13.1 build 2026-06-12 14:08 UTC';
 const wrap12=h=>(h%12+12)%12; const inArc=(h,[s,e])=>{h=wrap12(h);s=wrap12(s);e=wrap12(e);if(s===e)return true;return s<=e?(h>=s&&h<e):(h>=s||h<e)}; const toClockHour=t=>wrap12((t*6/Math.PI)+3);
 const DEPLOYABLE_TOOLS={caltrop:{id:'caltrop',glyph:'✣',kind:'deployable',cooldown:.2},decoy:{id:'decoy',glyph:'🛡️',kind:'deployable',cooldown:.2}};
 const weaponDef=()=>weapons.find(w=>w.id===state.player.weapon)||DEPLOYABLE_TOOLS[state.player.weapon];
@@ -83,7 +86,7 @@ const NOTO_GAME_GLYPHS = [
   '🌲','🌳','🌴','🌵','🌿','🌉','🌀','🌋','🏔️','🏠','🏦','🧱','🪨','🪵',
   '🌰','🍆','🍑','🍎','🍖','🍲','🧀','🎲','🃏','🔨','⚙️','🧲'
 ];
-NotoEmojiRenderer.preload([...new Set(NOTO_GAME_GLYPHS)]);
+const emojiPreload = NotoEmojiRenderer.preload([...new Set(NOTO_GAME_GLYPHS)]);
 
 function metaFor(id){if(!state.meta[id])state.meta[id]={speed:0,range:0,reach:0,swingSpeed:0,cooldown:0,damage:0,knockback:0,accel:0,shards:0,shatterSpeed:0,poison:0,poisonResist:0,potency:0,dose:0,duration:0,slow:0,maxHp:0,bounty:0,jackpot:0,blockChance:0,blockAmount:0};return state.meta[id];}
 function effectiveWeapon(base){
@@ -936,4 +939,12 @@ addEventListener('keyup',e=>{if(state.mode!=='game')return; state.keys.delete(e.
 canvas.addEventListener('mousemove',e=>{state.mouse.x=e.clientX;state.mouse.y=e.clientY;});
 canvas.addEventListener('mousedown',()=>{if(state.mode==='game')trig();}); addEventListener('mouseup',()=>{if(state.mode==='game')rel();});
 canvas.width=innerWidth*devicePixelRatio;canvas.height=innerHeight*devicePixelRatio;ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
-ui.style.display='none'; resetWorld(); requestAnimationFrame(loop);
+ui.style.display='none';
+addEventListener('notoemoji:progress',event=>{const s=event.detail,total=Math.max(1,s.total),finished=s.ready+s.failed,pct=Math.round(finished/total*100);loadingBar.style.width=`${pct}%`;loadingStatus.textContent=`Loading Noto Emoji ${finished}/${total}${s.failed?` · ${s.failed} unavailable`:''}`;});
+async function startGameClient(){
+  const timeout=new Promise(resolve=>setTimeout(()=>resolve('timeout'),12000)),result=await Promise.race([emojiPreload.then(()=> 'ready'),timeout]);
+  const s=NotoEmojiRenderer.status(),finished=s.ready+s.failed,pct=Math.round(finished/Math.max(1,s.total)*100);loadingBar.style.width=`${pct}%`;
+  loadingStatus.textContent=result==='ready'?`Ready · ${s.ready} glyphs cached`:`Starting with ${finished}/${s.total} glyphs cached; the rest will finish in the background`;
+  resetWorld();requestAnimationFrame(loop);setTimeout(()=>loading.classList.add('done'),180);
+}
+startGameClient();
