@@ -54,26 +54,42 @@ const zones = [
 ];
 
 const state = { mode:'menu',glyphWeapon:'club',t:0,last:0,keys:new Set(),mouse:{x:0,y:0,down:false,held:0},camera:{x:MAP_CENTER.x,y:MAP_CENTER.y},player:null,projectiles:[],pickups:[],enemies:[],terrain:[],waves:{},mount:'foot',debug:[],diamonds:0,ammo:{arrows:0,bolts:0,jars:0,pellets:0,cannonballs:0},elements:{fire:0,ice:0,poison:0},activeElement:null,meta:{},pendingReward:null,offerNpc:null,currentZone:null,run:1,hazards:[],deployables:[],feedback:[],hudFlash:{hp:0,diamonds:0,lastHp:null,lastDiamonds:null},fungusRespawns:{},nextEnemyId:1,finance:{savings:0,debt:0,trust:0,trustAvailable:0,amounts:{savings:5,loan:10,trust:5}},casinoWagers:{coin:1,dice:1,card:1},shopPurchases:{} };
-const BUILD_VERSION = 'v0.13.4 build 2026-06-12 15:18 UTC';
+const BUILD_VERSION = 'v0.14.2 build 2026-06-13 14:05 UTC';
 const wrap12=h=>(h%12+12)%12; const inArc=(h,[s,e])=>{h=wrap12(h);s=wrap12(s);e=wrap12(e);if(s===e)return true;return s<=e?(h>=s&&h<e):(h>=s||h<e)}; const toClockHour=t=>wrap12((t*6/Math.PI)+3);
 const DEPLOYABLE_TOOLS={caltrop:{id:'caltrop',glyph:'✣',kind:'deployable',cooldown:.2},decoy:{id:'decoy',glyph:'🛡️',kind:'deployable',cooldown:.2}};
 const weaponDef=()=>weapons.find(w=>w.id===state.player.weapon)||DEPLOYABLE_TOOLS[state.player.weapon];
 const isChargeWeapon=w=>w&&(['sling','bow','ballista','cannon'].includes(w.id)||w.kind==='bow');
-const chargeLevel=held=>1-Math.exp(-Math.max(0,held)/0.72);
+const chargeLevel=(held,id=state.player?.weapon)=>{const tier=id&&isChargeWeapon({id})?(metaFor(id).chargeSpeed||0):0,timeConstant=.72*Math.pow(.9,tier);return 1-Math.exp(-Math.max(0,held)/timeConstant);};
+const CANNON_FIRE_CHARGE=1-Math.exp(-.65/.72);
 const MERCHANT_ZONES = new Set(['bank','tanner','inn','casino','farrier','armorer']);
 const MINOR_ZONES = new Set(['tundra','marsh','desert','mine']);
 const MELEE_WEAPONS = new Set(['club','axe','sword']);
-const MELEE_UPGRADE_SCHEDULE = ['damage','knockback','cooldown','damage','knockback','swingSpeed','damage','cooldown','knockback','reach'];
-const RANGED_UPGRADE_SCHEDULE = ['damage','knockback','cooldown','damage','knockback','speed','damage','cooldown','knockback','range'];
-const SLING_UPGRADE_SCHEDULE = ['damage','knockback','cooldown','shards','damage','knockback','shatterSpeed','damage','speed','knockback','range','cooldown'];
+// Upgrade bushes only organize existing stats. Core choices stay visible immediately;
+// a purchased parent may reveal a small, directly-related group of existing stats.
+const MELEE_UPGRADE_BUSH = {roots:['damage','knockback','cooldown','swingSpeed','reach'],reveals:{}};
+const RANGED_UPGRADE_BUSH = {roots:['damage','knockback','cooldown','speed','range'],reveals:{chargeSpeed:{any:['cooldown','speed']}}};
+const SLING_UPGRADE_BUSH = RANGED_UPGRADE_BUSH;
+const JAR_UPGRADE_BUSH = {roots:['shards'],reveals:{shatterSpeed:{any:['shards']}}};
+const PELLET_UPGRADE_BUSH = {roots:['damage','knockback'],reveals:{}};
 const ELEMENT_UPGRADE_STATS = {fire:['damage','duration'],ice:['slow','duration'],poison:['potency','dose']};
 const ELEMENT_GLYPHS = {fire:'🔥',ice:'❄️',poison:'☠️'};
 const SMITH_UNLOCKS = ['sword'];
 const FOUNDRY_UNLOCKS = ['cannon','grapeshot'];
+function upgradeBushFor(id){
+  if(id==='horse')return {roots:['accel','speed'],reveals:{}};
+  if(id==='jar')return JAR_UPGRADE_BUSH;
+  if(id==='pellet')return PELLET_UPGRADE_BUSH;
+  if(id==='sling')return SLING_UPGRADE_BUSH;
+  return MELEE_WEAPONS.has(id)?MELEE_UPGRADE_BUSH:RANGED_UPGRADE_BUSH;
+}
+function revealAvailable(target,rule){
+  const levels=metaFor(target),requirements=rule?.any||[];
+  return requirements.some(stat=>(levels[stat]||0)>0);
+}
 function upgradeStatsFor(id){
-  if(id==='horse')return ['accel','speed','accel','accel','speed'];
-  if(id==='sling')return SLING_UPGRADE_SCHEDULE;
-  return MELEE_WEAPONS.has(id)?MELEE_UPGRADE_SCHEDULE:RANGED_UPGRADE_SCHEDULE;
+  const bush=upgradeBushFor(id),available=[...bush.roots];
+  for(const [child,rule] of Object.entries(bush.reveals))if(revealAvailable(id,rule)&&!available.includes(child))available.push(child);
+  return available;
 }
 const ZONE_NPCS = {bank:'🏦',tanner:'🧵',inn:'🍲',casino:'🎲',farrier:'🐴',armorer:'🛡️',orchard:'👨‍🌾',creek:'🧒',axe:'🧔',pasture:'🐎',smith:'🛡️',fletcher:'🏹',sawmill:'🪚',marches:'♜',volcano:'🧙‍♂️',frost:'🧙',swamp:'🧙‍♀️',foundry:'🙏'};
 const NOTO_GAME_GLYPHS = [
@@ -88,7 +104,7 @@ const NOTO_GAME_GLYPHS = [
 ];
 const emojiPreload = NotoEmojiRenderer.preload([...new Set(NOTO_GAME_GLYPHS)]);
 
-function metaFor(id){if(!state.meta[id])state.meta[id]={speed:0,range:0,reach:0,swingSpeed:0,cooldown:0,damage:0,knockback:0,accel:0,shards:0,shatterSpeed:0,poison:0,poisonResist:0,potency:0,dose:0,duration:0,slow:0,maxHp:0,bounty:0,jackpot:0,blockChance:0,blockAmount:0};return state.meta[id];}
+function metaFor(id){if(!state.meta[id])state.meta[id]={speed:0,range:0,reach:0,swingSpeed:0,chargeSpeed:0,cooldown:0,damage:0,knockback:0,accel:0,shards:0,shatterSpeed:0,poison:0,poisonResist:0,potency:0,dose:0,duration:0,slow:0,maxHp:0,bounty:0,jackpot:0,blockChance:0,blockAmount:0};return state.meta[id];}
 function effectiveWeapon(base){
   const m=metaFor(base.id),melee=MELEE_WEAPONS.has(base.id);
   return {...base,knock:base.knock*(1+m.knockback*.1),reach:base.reach*(1+(melee?m.reach:m.range)*.1),damageMult:1+m.damage*.1,speedMult:1+(melee?0:m.speed)*.1,swingSpeedMult:1+(melee?m.swingSpeed:0)*.1,cooldownMult:Math.pow(.9,m.cooldown||0),tiers:m};
@@ -109,12 +125,25 @@ function bankBountyUpgradeCost(){
   return Math.ceil(firstWaveGross*1.25);
 }
 function upgradeLabel(id,stat,cost){
-  const names={swingSpeed:'swing speed',cooldown:'cooldown time',reach:'reach',shatterSpeed:'shatter speed'};
-  if(stat==='shards')return `${id} +1 shard (${cost}♦)`;
-  if(stat==='cooldown')return `${id} -10% cooldown (${cost}♦)`;
-  return `${id} +10% ${names[stat]||stat} (${cost}♦)`;
+  const names={swingSpeed:'swing speed',chargeSpeed:'charge speed',cooldown:'cooldown time',reach:'reach',shatterSpeed:'shatter speed'},level=metaFor(id)[stat]||0,next=`Lv. ${level} → ${level+1}`;
+  if(stat==='shards')return `${id} shards ${next}: +1 shard (${cost}♦)`;
+  if(stat==='cooldown')return `${id} cooldown ${next}: -10% (${cost}♦)`;
+  return `${id} ${names[stat]||stat} ${next}: +10% (${cost}♦)`;
 }
-function upgradeOption(target,stat,kind='weapon',base=15){const cost=upgradeCost(target,stat,base);return{[kind]:target,stat,cost,label:upgradeLabel(target,stat,cost)};}
+function upgradeOption(target,stat,kind='weapon',base=15,parent=null){const cost=upgradeCost(target,stat,base),label=upgradeLabel(target,stat,cost);return{[kind]:target,stat,cost,parent,label:parent?`↳ ${label}`:label};}
+function weaponUpgradeOptions(target){
+  const bush=upgradeBushFor(target),options=bush.roots.map(stat=>upgradeOption(target,stat));
+  for(const [child,rule] of Object.entries(bush.reveals))if(revealAvailable(target,rule)){
+    const parent=(rule.any||[]).find(stat=>(metaFor(target)[stat]||0)>0)||null;
+    options.push(upgradeOption(target,child,'weapon',15,parent));
+  }
+  return options;
+}
+function zoneWeaponUpgradeOptions(zone,rewardId){
+  if(zone.id==='smith')return [...weaponUpgradeOptions('sword'),...weaponUpgradeOptions('pellet')];
+  if(zone.id==='creek')return [...weaponUpgradeOptions('sling'),...weaponUpgradeOptions('jar')];
+  return weaponUpgradeOptions(rewardId);
+}
 function merchantOptions(zone,wave){
   const cash={diamonds:3+wave,label:`take ${3+wave}♦`};
   if(zone.id==='bank'){const cost=bankBountyUpgradeCost(),o={merchant:'bank',stat:'bounty',cost,label:`banker: bounty ${bountyRate()}♦ → ${bountyRate()+1}♦ (${cost}♦)`};return[o,cash];}
@@ -128,11 +157,6 @@ function merchantOptions(zone,wave){
   }
   return null;
 }
-function distinctScheduledStats(pool,wave){
-  const first=pool[wave%pool.length];let offset=1,second=pool[(wave+offset)%pool.length];
-  while(second===first&&offset<pool.length){offset++;second=pool[(wave+offset)%pool.length];}
-  return[first,second];
-}
 function buildReward(zone){
   const wave=state.waves[zone.id]?.wave||1,rewardId=rewardWeaponForZone(zone),cash={diamonds:3+wave,label:`take ${3+wave}♦`};let options;
   if(MERCHANT_ZONES.has(zone.id))options=merchantOptions(zone,wave);
@@ -141,8 +165,8 @@ function buildReward(zone){
   else if(zone.id==='foundry'&&FOUNDRY_UNLOCKS.some(u=>!state.player.unlocked.has(u))){const next=FOUNDRY_UNLOCKS.find(u=>!state.player.unlocked.has(u)),cost=unlockCost(zone);options=[{unlock:next,cost,label:`unlock ${next} (${cost}♦)`},cash];}
   else if(zone.unlock&&!state.player.unlocked.has(zone.unlock)){const cost=unlockCost(zone);options=[{unlock:zone.unlock,cost,label:`unlock ${zone.unlock} (${cost}♦)`},cash];}
   else if(zone.element&&!state.player.unlockedElements.has(zone.element)){const cost=unlockCost(zone);options=[{elementUnlock:zone.element,cost,label:`unlock ${zone.element} (${cost}♦)`},cash];}
-  else if(zone.element){const pool=ELEMENT_UPGRADE_STATS[zone.element],[a,b]=distinctScheduledStats(pool,wave);options=[upgradeOption(zone.element,a,'element'),upgradeOption(zone.element,b,'element'),cash];}
-  else{const pool=upgradeStatsFor(rewardId),[a,b]=distinctScheduledStats(pool,wave);options=[upgradeOption(rewardId,a),upgradeOption(rewardId,b),cash];}
+  else if(zone.element){options=[...ELEMENT_UPGRADE_STATS[zone.element].map(stat=>upgradeOption(zone.element,stat,'element')),cash];}
+  else{options=[...zoneWeaponUpgradeOptions(zone,rewardId),cash];}
   state.pendingReward={zone:zone.id,wave,options,purchased:false};state.offerNpc={x:state.player.x+42,y:state.player.y-34,glyph:ZONE_NPCS[zone.id]||'🙂',zone:zone.id,born:state.t};dbg(`[REWARD] ${zone.name} wave ${wave} cleared; NPC selling reward`);
 }
 function chooseReward(i){ const reward=state.pendingReward, here=getZone(state.player.x,state.player.y); if(!reward||reward.purchased||here?.id!==reward.zone) return; const option=reward.options[i]; if(!option) return; if(option.diamonds){state.diamonds+=option.diamonds;dbg(`[PAYOUT] +${option.diamonds}♦`);reward.purchased=true;return;} const cost=option.cost||0; if(state.diamonds<cost){dbg(`[SHOP] need ${cost}♦ for ${option.label}; have ${state.diamonds}♦`);return;} state.diamonds-=cost; if(option.unlock){ state.player.unlocked.add(option.unlock); if(weapons.some(w=>w.id===option.unlock)){state.player.weapon=option.unlock;state.player.lastWeapon=option.unlock;} dbg(`[UNLOCK] ${option.unlock} bought for ${cost}♦`); } else if(option.elementUnlock){ state.player.unlockedElements.add(option.elementUnlock); state.activeElement=option.elementUnlock; dbg(`[UNLOCK] ${option.elementUnlock} element bought for ${cost}♦`); } else if(option.element){ const m=metaFor(option.element); m[option.stat]++; dbg(`[UPGRADE] ${option.element}.${option.stat} -> ${m[option.stat]} cost=${cost}♦`); } else if(option.merchant){ const m=metaFor(option.merchant); m[option.stat]++; if(option.merchant==='player'&&option.stat==='maxHp'){state.player.maxHp++;state.player.hp=Math.min(state.player.maxHp,state.player.hp+1);} dbg(`[UPGRADE] ${option.merchant}.${option.stat} -> ${m[option.stat]} cost=${cost}♦`); } else if(option.heal){ state.player.hp=Math.min(state.player.maxHp,state.player.hp+option.heal); dbg(`[HEAL] +${option.heal} HP cost=${cost}♦`); } else { const m=metaFor(option.weapon); m[option.stat]++; dbg(`[UPGRADE] ${option.weapon}.${option.stat} -> ${m[option.stat]} cost=${cost}♦`); } reward.purchased=true; }
@@ -572,6 +596,7 @@ function update(dt){const p=state.player;state.feedback=state.feedback.filter(f=
   if(zone&&!state.pendingReward&&!state.waves[zone.id].spawned&&!state.waves[zone.id].cleared&&!state.enemies.some(e=>e.zone===zone.id&&e.hp>0))spawnWave(zone);
   if(state.mouse.down&&state.mouse.queuedAttack&&p.attackCooldown<=0&&!isChargeWeapon(weaponDef()))beginMeleeSwing(); if(p.swing>0){p.swing-=dt*3*effectiveWeapon(weaponDef()).swingSpeedMult;doSwingDamage();} passiveMeleeContact(dt);
   for(const pr of state.projectiles){
+    projectileCombatStats(pr);
     if(pr.spore){const tx=p.x-pr.x,ty=p.y-pr.y,d=Math.hypot(tx,ty)||1,speed=Math.hypot(pr.vx,pr.vy)||1,turn=pr.spiral*dt,ux=tx/d,uy=ty/d,sideX=-uy,sideY=ux;pr.vx+=(ux*.32+sideX*.68)*speed*turn;pr.vy+=(uy*.32+sideY*.68)*speed*turn;}
     pr.vx*=Math.max(0,1-dt*(pr.spore?.18:.45));pr.vy*=Math.max(0,1-dt*(pr.spore?.18:.45));pr.speed=Math.hypot(pr.vx,pr.vy);if(pr.spin)pr.rotation=(pr.rotation||0)+pr.spin*dt;
     const nx=pr.x+pr.vx*dt,ny=pr.y+pr.vy*dt,obstacle=collidesObstacle(nx,ny,{blockStumps:false});
@@ -662,7 +687,6 @@ function update(dt){const p=state.player;state.feedback=state.feedback.filter(f=
     const finalR=Math.hypot(e.x-MAP_CENTER.x,e.y-MAP_CENTER.y);if(e.minR&&finalR<e.minR){const sc=e.minR/Math.max(1,finalR);e.x=MAP_CENTER.x+(e.x-MAP_CENTER.x)*sc;e.y=MAP_CENTER.y+(e.y-MAP_CENTER.y)*sc;e.vx*=0.3;e.vy*=0.3;}
     for(const item of state.deployables){if(item.used)continue;const contact=Math.hypot(e.x-item.x,e.y-item.y);if(item.type==='caltrop'&&contact<22){e.hp-=2.5;showEnemyDamage(e,2.5);e.vx=0;e.vy=0;e.stun=0.35;item.used=true;dbg(`[CALTROP] ${e.glyph} took 2.5 damage and lost momentum`);}else if(item.type==='decoy'&&contact<25){e.vx*=0.15;e.vy*=0.15;item.used=true;dbg(`[DECOY] ${e.glyph} knocked over the armor stand`);}}
     repelFromObstacle(e,16); confineEnemyRadius(e,playerR);
-    if(e.zone==='creek'&&getZone(e.x,e.y)?.id!=='creek'){const cz=zones.find(z=>z.id==='creek'),pt=randomPointInZone(cz);e.x=pt.x;e.y=pt.y;e.vx=0;e.vy=0;}
   } state.deployables=state.deployables.filter(item=>!item.used); resolveEnemySpacing(dt); hitChecks(); if(p.hp<=0){resurrect();return;}
   if(zone&&!state.pendingReward&&!state.fungusRespawns[zone.id]&&!state.enemies.some(e=>e.zone===zone.id&&e.hp>0))completeWave(zone); }
 
@@ -681,10 +705,25 @@ function knockEnemy(e,angle,impulse){
   e.vx=(e.vx||0)+nx*impulse;e.vy=(e.vy||0)+ny*impulse;e.x+=nx*kick;e.y+=ny*kick;
   e.knockbackT=Math.max(e.knockbackT||0,Math.min(0.42,0.1+impulse/620));
 }
-function passiveMeleeContact(dt){const p=state.player,w=effectiveWeapon(weaponDef());if(w.kind!=='swing')return; const a=Math.atan2(state.mouse.y-innerHeight/2,state.mouse.x-innerWidth/2),sx=p.x+Math.cos(a)*w.reach*0.75,sy=p.y+Math.sin(a)*w.reach*0.75; for(const e of state.enemies){const rel=Math.hypot((p.vx||0)-(e.vx||0),(p.vy||0)-(e.vy||0)); if(rel>35&&Math.hypot(e.x-sx,e.y-sy)<38&&state.t>(e.meleeTouch||0)){const spMul=Math.min(2.6,rel/150),dmg=w.damage*0.45*spMul*w.damageMult,kb=w.knock*spMul*14,ang=Math.atan2(e.y-p.y,e.x-p.x); e.hp-=dmg;showEnemyDamage(e,dmg);e.hitT=state.t;e.lunge=5;knockEnemy(e,ang,kb);e.meleeTouch=state.t+0.32;dbg(`[TOUCH:${w.id}] dmg=${dmg.toFixed(2)} rel=${rel.toFixed(1)} hp=${e.hp.toFixed(2)}`);}}}
+function projectileCombatStats(pr){
+  if(pr.maxHp===undefined){const large=(pr.size||0)>=18||pr.knock>=2.5;pr.maxHp=pr.spore?.35:large?5:1.5;pr.hp=pr.maxHp;pr.reflectable=!!(pr.hostile&&large&&!pr.spore);}
+  return pr;
+}
+function destroyProjectile(pr,reason='destroyed'){pr.hp=0;pr.life=0;pr.hit=true;pr.destroyed=true;dbg(`[PROJECTILE] ${pr.source||'projectile'} ${reason}`);}
+function strikeProjectile(pr,damage,knock,angle,serial){
+  projectileCombatStats(pr);if(pr.life<=0||pr.meleeHit===serial)return false;pr.meleeHit=serial;pr.hp-=damage;
+  if(pr.hp<=0){destroyProjectile(pr,'broken by melee');return true;}
+  if(pr.reflectable&&knock>0){const speed=Math.max(150,Math.hypot(pr.vx,pr.vy)*.72+knock*9);pr.vx=Math.cos(angle)*speed;pr.vy=Math.sin(angle)*speed;pr.speed=speed;pr.angle=angle;pr.hostile=false;pr.reflected=true;pr.source=`reflected ${pr.source||'projectile'}`;pr.life=Math.max(pr.life,1.4);pr.x+=Math.cos(angle)*24;pr.y+=Math.sin(angle)*24;dbg(`[REFLECT] ${pr.source} hp=${pr.hp.toFixed(2)} speed=${speed.toFixed(1)}`);}
+  return true;
+}
+function meleeProjectiles(sx,sy,radius,w,damage,knock,angle,serial){
+  for(const pr of state.projectiles)if(pr.hostile&&pr.life>0&&Math.hypot(pr.x-sx,pr.y-sy)<radius+(pr.size||8)*.35)strikeProjectile(pr,damage,knock,angle,serial);
+}
+function passiveMeleeContact(dt){const p=state.player,w=effectiveWeapon(weaponDef());if(w.kind!=='swing')return; const a=Math.atan2(state.mouse.y-innerHeight/2,state.mouse.x-innerWidth/2),sx=p.x+Math.cos(a)*w.reach*0.75,sy=p.y+Math.sin(a)*w.reach*0.75,relWeapon=Math.hypot(p.vx||0,p.vy||0);meleeProjectiles(sx,sy,30,w,w.damage*.35*(1+relWeapon/260)*w.damageMult,w.knock*(1+relWeapon/220),a,`touch-${Math.floor(state.t*8)}`); for(const e of state.enemies){const rel=Math.hypot((p.vx||0)-(e.vx||0),(p.vy||0)-(e.vy||0)); if(rel>35&&Math.hypot(e.x-sx,e.y-sy)<38&&state.t>(e.meleeTouch||0)){const spMul=Math.min(2.6,rel/150),dmg=w.damage*0.45*spMul*w.damageMult,kb=w.knock*spMul*14,ang=Math.atan2(e.y-p.y,e.x-p.x); e.hp-=dmg;showEnemyDamage(e,dmg);e.hitT=state.t;e.lunge=5;knockEnemy(e,ang,kb);e.meleeTouch=state.t+0.32;dbg(`[TOUCH:${w.id}] dmg=${dmg.toFixed(2)} rel=${rel.toFixed(1)} hp=${e.hp.toFixed(2)}`);}}}
 
 function doSwingDamage(){const p=state.player,w=effectiveWeapon(weaponDef());if(w.kind!=='swing')return; const a=Math.atan2(state.mouse.y-innerHeight/2,state.mouse.x-innerWidth/2); const sx=p.x+Math.cos(a)*w.reach,sy=p.y+Math.sin(a)*w.reach;
  const swingSpeed = Math.hypot(state.player.vx,state.player.vy) + Math.hypot(state.mouse.x-innerWidth/2,state.mouse.y-innerHeight/2)*0.002;
+ meleeProjectiles(sx,sy,38,w,w.damage*(1+Math.min(2,swingSpeed/220))*w.damageMult,w.knock*(1+Math.min(2,swingSpeed/220))*18,a,p.swingSerial);
  for(const e of state.enemies){if(e.swingHit!==p.swingSerial&&Math.hypot(e.x-sx,e.y-sy)<45){e.swingHit=p.swingSerial;const spMul=(1+Math.min(2,swingSpeed/220))*w.swingSpeedMult; const dmg=w.damage*spMul*w.damageMult; e.hp-=dmg;showEnemyDamage(e,dmg); e.hitT=state.t;e.lunge=5; if(p.swingElement)addStatus(e,p.swingElement,1); const kb=w.knock*spMul*18; knockEnemy(e,a,kb); dbg(`[SWING:${w.id}] -> enemy ${e.glyph} dmg=${dmg.toFixed(2)} kb=${kb.toFixed(1)} hp=${e.hp.toFixed(2)} ang=${a.toFixed(2)}`);}}
  for(const t of state.terrain){if(t.swingHit!==p.swingSerial&&Math.hypot(t.x-sx,t.y-sy)<45){t.swingHit=p.swingSerial;applyHit(t,w,1);}} }
 
@@ -699,7 +738,14 @@ function deflectProjectile(pr, tx, ty, slow=0.78, turn=0.35){
 
 function hitChecks(){
   const player=state.player;
+  for(let i=0;i<state.projectiles.length;i++)for(let j=i+1;j<state.projectiles.length;j++){
+    const a=projectileCombatStats(state.projectiles[i]),b=projectileCombatStats(state.projectiles[j]);if(a.life<=0||b.life<=0||!!a.hostile===!!b.hostile)continue;
+    const radius=Math.max(7,(a.size||8)*.28+(b.size||8)*.28);if(Math.hypot(a.x-b.x,a.y-b.y)>radius)continue;
+    const aPower=Math.max(.2,(a.damage||.2)*(1+Math.hypot(a.vx,a.vy)/420)),bPower=Math.max(.2,(b.damage||.2)*(1+Math.hypot(b.vx,b.vy)/420));a.hp-=bPower;b.hp-=aPower;a.hit=b.hit=true;
+    if(a.hp<=0)destroyProjectile(a,'destroyed in flight');if(b.hp<=0)destroyProjectile(b,'destroyed in flight');
+  }
   for(const pr of state.projectiles){
+    projectileCombatStats(pr);
     if(pr.life<=0)continue;
     if(pr.hostile){
       if(Math.hypot(player.x-pr.x,player.y-pr.y)<22){
@@ -743,7 +789,7 @@ function hitChecks(){
 
 
 function spawnShards(pr,ignore=null){
-  const m=metaFor('sling'),count=3+(m.shards||0),impactSpeed=Math.hypot(pr.vx||0,pr.vy||0),expansion=impactSpeed*1.35+180*(1+(m.shatterSpeed||0)*0.1),baseVx=pr.vx||0,baseVy=pr.vy||0,baseAng=Math.atan2(baseVy,baseVx)||pr.angle;
+  const m=metaFor('jar'),count=3+(m.shards||0),impactSpeed=Math.hypot(pr.vx||0,pr.vy||0),expansion=impactSpeed*1.35+180*(1+(m.shatterSpeed||0)*0.1),baseVx=pr.vx||0,baseVy=pr.vy||0,baseAng=Math.atan2(baseVy,baseVx)||pr.angle;
   for(let i=0;i<count;i++){
     const offset=count===1?Math.PI:(i===0?Math.PI:((i-1)/(count-1))*Math.PI*2),a=baseAng+offset+(Math.random()-0.5)*0.12,vx=baseVx+Math.cos(a)*expansion,vy=baseVy+Math.sin(a)*expansion,sp=Math.hypot(vx,vy);
     state.projectiles.push({x:pr.x+Math.cos(a)*18,y:pr.y+Math.sin(a)*18,vx,vy,life:0.62,glyph:'triangle',size:9,damage:1.4,knock:6.5,pierce:3,damageMult:0.7,angle:a,speed:sp,source:'jar shard',element:pr.element,ignore,color:'#8b5a2b',rotation:Math.random()*Math.PI*2,spin:(Math.random()<0.5?-1:1)*(9+Math.random()*8)});
@@ -764,7 +810,7 @@ function maxMountedSlingSpeed(){
 }
 function fireCharge(){
   const w=effectiveWeapon(weaponDef()),p=state.player;if((p.attackCooldown||0)>0){dbg(`[COOLDOWN] ${w.id} ${(p.attackCooldown||0).toFixed(2)}s`);return;}
-  const h=chargeLevel(state.mouse.held);let a=Math.atan2(state.mouse.y-innerHeight/2,state.mouse.x-innerWidth/2),sp=projectileLaunchSpeed(w,h);
+  const h=chargeLevel(state.mouse.held,w.id);let a=Math.atan2(state.mouse.y-innerHeight/2,state.mouse.x-innerWidth/2),sp=projectileLaunchSpeed(w,h);
   let glyph='●',size=12,damage=w.damage,knock=w.knock,pierce=w.pierce,shards=false,damageMult=w.damageMult||1,color='#111',element=null,life=2.2,pierces=0,recoverable=null;
   if(w.id==='bow'){
     if(state.ammo.arrows<=0){dbg('[AMMO] buy arrows in Fletcher Village');return;}state.ammo.arrows--;glyph='➵';size=22;recoverable='arrows';
@@ -775,16 +821,17 @@ function fireCharge(){
     if(state.ammo.bolts<=0){dbg('[AMMO] buy ballista bolts in Sawmill Woods');return;}state.ammo.bolts--;glyph='➳';size=36;life=3;damage=13;knock=5.5;pierce=11;
   }
   if(w.id==='cannon'){
-    if((p.cannonCooldown||0)>0){dbg(`[CANNON] cooling ${(p.cannonCooldown||0).toFixed(1)}s`);return;}if(state.mouse.held<0.65){dbg('[CANNON] needs warm-up');return;}
+    if((p.cannonCooldown||0)>0){dbg(`[CANNON] cooling ${(p.cannonCooldown||0).toFixed(1)}s`);return;}if(h<CANNON_FIRE_CHARGE){dbg('[CANNON] needs warm-up');return;}
     if(state.cannonMode==='grape'&&p.unlocked.has('grapeshot')){
       if(state.ammo.pellets<6){dbg('[AMMO] grapeshot needs 6 metal pellets');return;}state.ammo.pellets-=6;p.cannonCooldown=1.35;p.attackCooldown=1.35;p.attackCooldownTotal=1.35;p.vx-=Math.cos(a)*70;p.vy-=Math.sin(a)*70;
-      for(let i=-3;i<=3;i++){const aa=a+i*0.11,sv=maxMountedSlingSpeed();state.projectiles.push({x:p.x+Math.cos(a)*30,y:p.y+Math.sin(a)*30,vx:Math.cos(aa)*sv+p.vx,vy:Math.sin(aa)*sv+p.vy,life:0.75,glyph:'●',size:10,damage:6.5,knock:6,pierce:4.2,damageMult:1,angle:aa,speed:Math.hypot(Math.cos(aa)*sv+p.vx,Math.sin(aa)*sv+p.vy),source:'grapeshot',color:'#111'});}
+      const pellet=metaFor('pellet'),pelletDamage=6.5*(1+(pellet.damage||0)*.1),pelletKnock=6*(1+(pellet.knockback||0)*.1);
+      for(let i=-3;i<=3;i++){const aa=a+i*0.11,sv=maxMountedSlingSpeed();state.projectiles.push({x:p.x+Math.cos(a)*30,y:p.y+Math.sin(a)*30,vx:Math.cos(aa)*sv+p.vx,vy:Math.sin(aa)*sv+p.vy,life:0.75,glyph:'●',size:10,damage:pelletDamage,knock:pelletKnock,pierce:4.2,damageMult:1,angle:aa,speed:Math.hypot(Math.cos(aa)*sv+p.vx,Math.sin(aa)*sv+p.vy),source:'grapeshot',color:'#111'});}
       for(const e of state.enemies){const da=Math.atan2(Math.sin(Math.atan2(e.y-p.y,e.x-p.x)-a),Math.cos(Math.atan2(e.y-p.y,e.x-p.x)-a)),dist=Math.hypot(e.x-p.x,e.y-p.y);if(Math.abs(da)<0.55&&dist<150){e.vx+=Math.cos(a)*180;e.vy+=Math.sin(a)*180;}}dbg('[CANNON] grapeshot blast');return;
     }
     if(state.ammo.cannonballs<=0){dbg('[AMMO] buy cannonballs at the Foundry');return;}state.ammo.cannonballs--;glyph='●';size=38;damage=42;knock=75;pierce=24;sp=520*w.speedMult;p.cannonCooldown=2;p.vx-=Math.cos(a)*95;p.vy-=Math.sin(a)*95;damageMult=6;life=4;pierces=9;
   }
   if(w.id==='sling'){
-    if(state.slingMode==='pellet'){if(state.ammo.pellets<=0){dbg('[AMMO] buy metal pellets in Smith Town');return;}state.ammo.pellets--;glyph='●';size=10;damage=6;knock=5.2;pierce=3.8;color='#111';recoverable='pellets';}
+    if(state.slingMode==='pellet'){if(state.ammo.pellets<=0){dbg('[AMMO] buy metal pellets in Smith Town');return;}state.ammo.pellets--;glyph='●';size=10;const pellet=metaFor('pellet');damage=6*(1+(pellet.damage||0)*.1);knock=5.2*(1+(pellet.knockback||0)*.1);pierce=3.8;color='#111';recoverable='pellets';}
     else if(['jar','elementJar'].includes(state.slingMode)){if(state.ammo.jars<=0){dbg('[AMMO] buy jars at Sling Creekside');return;}state.ammo.jars--;if(state.slingMode==='elementJar'&&state.activeElement&&state.elements[state.activeElement]>0){element=state.activeElement;state.elements[element]--;}glyph='🏺';size=22;damage=1.3;knock=5.5;pierce=1.2;shards=true;}
     else{glyph='●';size=18;damage=1.2;knock=7.5;pierce=0.25;color='#777';}
   }
@@ -794,7 +841,15 @@ function fireCharge(){
 }
 
 function hex(x,y,r){ctx.beginPath();for(let i=0;i<6;i++){const a=Math.PI/3*i+Math.PI/6,px=x+Math.cos(a)*r,py=y+Math.sin(a)*r;i?ctx.lineTo(px,py):ctx.moveTo(px,py);}ctx.closePath();}
-function drawHexBackground(){const size=12,pack=1.34,h=Math.sqrt(3)*size*pack,v=1.5*size*pack,worldW=innerWidth*1.3,worldH=innerHeight*1.3; const r0=Math.floor((state.camera.y-worldH*0.5)/v)-2,r1=Math.ceil((state.camera.y+worldH*0.5)/v)+2,c0=Math.floor((state.camera.x-worldW*0.5)/h)-2,c1=Math.ceil((state.camera.x+worldW*0.5)/h)+2; for(let row=r0;row<=r1;row++){for(let col=c0;col<=c1;col++){const wx=col*h+(row%2?h/2:0),wy=row*v,p=projectWorld(wx,wy); if(p.x<-8||p.x>innerWidth+8||p.y<-8||p.y>innerHeight+8)continue; const z=getZone(wx,wy); const q=col-((row-(row&1))>>1),idx=((q-row)%3+3)%3; ctx.fillStyle=z?z.palette[idx]:['#080b0d','#0b0f12','#0e1317'][idx]; hex(p.x,p.y,size); ctx.fill();}}}
+const mutedPaletteCache=new Map();
+function mutedFloorColor(hexColor){
+  if(mutedPaletteCache.has(hexColor))return mutedPaletteCache.get(hexColor);
+  const value=parseInt(hexColor.slice(1),16),rgb=[value>>16,(value>>8)&255,value&255],gray=rgb[0]*.299+rgb[1]*.587+rgb[2]*.114;
+  const muted=rgb.map(channel=>Math.max(0,Math.min(255,Math.round((channel*.68+gray*.32)*.9))));
+  const result=`#${muted.map(channel=>channel.toString(16).padStart(2,'0')).join('')}`;mutedPaletteCache.set(hexColor,result);return result;
+}
+function drawGroundShadow(x,y,width=18,height=7,alpha=.3){ctx.save();ctx.fillStyle=`rgba(0,0,0,${alpha})`;ctx.beginPath();ctx.ellipse(x,y+height*.45,width*.5,height*.5,0,0,Math.PI*2);ctx.fill();ctx.restore();}
+function drawHexBackground(){const size=12,pack=1.34,h=Math.sqrt(3)*size*pack,v=1.5*size*pack,worldW=innerWidth*1.3,worldH=innerHeight*1.3; const r0=Math.floor((state.camera.y-worldH*0.5)/v)-2,r1=Math.ceil((state.camera.y+worldH*0.5)/v)+2,c0=Math.floor((state.camera.x-worldW*0.5)/h)-2,c1=Math.ceil((state.camera.x+worldW*0.5)/h)+2; for(let row=r0;row<=r1;row++){for(let col=c0;col<=c1;col++){const wx=col*h+(row%2?h/2:0),wy=row*v,p=projectWorld(wx,wy); if(p.x<-8||p.x>innerWidth+8||p.y<-8||p.y>innerHeight+8)continue; const z=getZone(wx,wy); const q=col-((row-(row&1))>>1),idx=((q-row)%3+3)%3,base=z?z.palette[idx]:['#080b0d','#0b0f12','#0e1317'][idx]; ctx.fillStyle=z?mutedFloorColor(base):base; hex(p.x,p.y,size); ctx.fill();}}}
 function drawWaterPath(path,color,highlight,width){const world=smoothPathPoints(path,5),pts=world.map(p=>projectWorld(p.x,p.y));ctx.lineCap='round';ctx.lineJoin='round';for(const [stroke,lw] of [[color,width*0.55],[highlight,Math.max(4,width*0.14)]]){ctx.strokeStyle=stroke;ctx.lineWidth=lw;for(let i=0;i<pts.length-1;i++){const zone=getZone(world[i].x,world[i].y),progress=i/(pts.length-1),marshFade=zone?.id==='marsh'||zone?.id==='swamp'?Math.max(0.08,1-(progress-0.68)/0.32):1;ctx.globalAlpha=marshFade;ctx.beginPath();ctx.moveTo(pts[i].x,pts[i].y);ctx.lineTo(pts[i+1].x,pts[i+1].y);ctx.stroke();}}ctx.globalAlpha=1;}
 function drawRiver(){drawWaterPath(coldRiverPath,'#197fbeff','#e8fbffff',150);}
 function drawSlingCreek(){drawWaterPath(warmCreekPath,'#22b6d8ff','#e1fbffff',48);}
@@ -816,7 +871,7 @@ function drawSpecialGlyph(id, gridW, gridH){
 }
 
 function cellPoint(cell,gridW,gridH){ const m=String(cell||'F1').match(/^([A-K])(-?\d+)$/); if(!m)return{x:-gridW/2,y:0}; const row=glyphRows.indexOf(m[1]),col=Number(m[2]); return{x:((col-0.5)/12)*gridW-gridW/2,y:((row+0.5)/11)*gridH-gridH/2}; }
-function drawHeldWeapon(w, aim){ if(w.kind==='deployable'){ctx.rotate(aim);ctx.font='18px serif';ctx.fillText(w.glyph,20,0);return;} const hold=chargeLevel(state.mouse.held),reachScale=MELEE_WEAPONS.has(w.id)?1+metaFor(w.id).reach*.1:1, swingViz=(w.id==='club'||w.kind==='swing')?Math.sin((1-Math.max(0,state.player.swing))*Math.PI*2.4)*0.9*Math.max(0,state.player.swing):0, wob=(w.id==='bow'&&state.mouse.down)?Math.sin(state.t*20)*Math.max(0,state.mouse.held-0.7)*0.12:0; const gw=21*reachScale,gh=16.5,pts=weaponGlyphPoints[w.id]||{},hp=cellPoint(pts.handleCell,gw,gh),tp=cellPoint(pts.tipCell,gw,gh),glyphAngle=Math.atan2(tp.y-hp.y,tp.x-hp.x); ctx.rotate(aim+swingViz+wob); ctx.translate(10,0); ctx.rotate(-glyphAngle); ctx.translate(-hp.x,-hp.y); drawWeaponVisual(w,gw,gh,(w.id==='bow'&&state.mouse.down)?hold:0.45); }
+function drawHeldWeapon(w, aim){ if(w.kind==='deployable'){ctx.rotate(aim);ctx.font='18px serif';ctx.fillText(w.glyph,20,0);return;} const hold=chargeLevel(state.mouse.held,w.id),reachScale=MELEE_WEAPONS.has(w.id)?1+metaFor(w.id).reach*.1:1, swingViz=(w.id==='club'||w.kind==='swing')?Math.sin((1-Math.max(0,state.player.swing))*Math.PI*2.4)*0.9*Math.max(0,state.player.swing):0, wob=(w.id==='bow'&&state.mouse.down)?Math.sin(state.t*20)*Math.max(0,state.mouse.held-0.7)*0.12:0; const gw=21*reachScale,gh=16.5,pts=weaponGlyphPoints[w.id]||{},hp=cellPoint(pts.handleCell,gw,gh),tp=cellPoint(pts.tipCell,gw,gh),glyphAngle=Math.atan2(tp.y-hp.y,tp.x-hp.x); ctx.rotate(aim+swingViz+wob); ctx.translate(10,0); ctx.rotate(-glyphAngle); ctx.translate(-hp.x,-hp.y); drawWeaponVisual(w,gw,gh,(w.id==='bow'&&state.mouse.down)?hold:0.45); }
 
 
 function renderGlyphTest(){
@@ -853,6 +908,19 @@ function drawStatusIcons(o,x,y){
   icons.forEach((it,i)=>{ctx.font=`${Math.round(11*it.scale)}px serif`;ctx.fillText(ELEMENT_GLYPHS[it.type],x+12+i*(10+8*it.scale),y-14);});
 }
 
+function rewardOptionGroup(option){
+  if(option.weapon)return option.weapon;
+  if(option.element)return option.element;
+  if(option.merchant)return option.merchant;
+  if(option.unlock||option.elementUnlock)return 'unlock';
+  return 'alternative';
+}
+function rewardOptionsHtml(reward){
+  const groups=new Map();
+  reward.options.forEach((option,index)=>{const group=rewardOptionGroup(option);if(!groups.has(group))groups.set(group,[]);groups.get(group).push({option,index});});
+  return [...groups].map(([group,entries])=>`<div class="upgrade-group"><em>${group}</em><br>${entries.map(({option,index})=>`<button type="button" data-reward-index="${index}" ${reward.purchased?'disabled':''}>${option.label}</button>`).join(' ')}</div>`).join('');
+}
+
 function drawWeaponBar(){
   const entries=[...weapons.filter(w=>state.player.unlocked.has(w.id)).map(w=>({slot:weapons.indexOf(w)+1,glyph:w.id==='club'?'┃':w.glyph,active:w.id===state.player.weapon})),...(state.player.caltrops>0?[{slot:8,glyph:'✣',count:state.player.caltrops,active:state.player.weapon==='caltrop'}]:[]),...(state.player.decoys>0?[{slot:9,glyph:'🛡️',count:state.player.decoys,active:state.player.weapon==='decoy'}]:[])];
   const cell=54,total=entries.length*cell,x0=innerWidth/2-total/2,y=innerHeight-38;ctx.save();ctx.textAlign='center';ctx.textBaseline='middle';ctx.font='12px sans-serif';
@@ -861,7 +929,7 @@ function drawWeaponBar(){
     ctx.beginPath();ctx.roundRect(left,top,width,height,8);
     if(entry.active){
       const totalCooldown=Math.max(.001,state.player.attackCooldownTotal||weaponDef().cooldown||.5),cooldownReady=Math.max(0,Math.min(1,1-(state.player.attackCooldown||0)/totalCooldown));
-      const charging=isChargeWeapon(weaponDef())&&state.mouse.down&&state.player.attackCooldown<=0,charge=charging?chargeLevel(state.mouse.held):0;
+      const charging=isChargeWeapon(weaponDef())&&state.mouse.down&&state.player.attackCooldown<=0,charge=charging?chargeLevel(state.mouse.held,weaponDef().id):0;
       ctx.fillStyle='rgba(184,42,42,.95)';ctx.fill();
       ctx.save();ctx.beginPath();ctx.roundRect(left,top,width,height,8);ctx.clip();
       ctx.fillStyle='rgba(231,190,49,.96)';ctx.fillRect(left,top+height*(1-cooldownReady),width,height*cooldownReady);
@@ -888,14 +956,14 @@ function render(){updateHudFlashes();ctx.clearRect(0,0,innerWidth,innerHeight); 
     {id:'sawmill',glyph:'🌳',h:1.5,r:4.55*RADIUS_UNIT,color:'#fff'}
   ];
   for(const wp of wps){ const th=(wp.h-3)*Math.PI/6; const wx=MAP_CENTER.x+Math.cos(th)*wp.r, wy=MAP_CENTER.y+Math.sin(th)*wp.r; const actual=projectWorld(wx,wy); const on=actual.x>=30&&actual.x<=innerWidth-30&&actual.y>=30&&actual.y<=innerHeight-30; const dx=actual.x-innerWidth/2,dy=actual.y-innerHeight/2,scale=on?1:Math.min((innerWidth/2-36)/Math.max(1,Math.abs(dx)),(innerHeight/2-36)/Math.max(1,Math.abs(dy)),1); const sx=on?actual.x:innerWidth/2+dx*scale, sy=on?actual.y:innerHeight/2+dy*scale; const dist=Math.hypot(wx-state.player.x,wy-state.player.y); const t=Math.max(0,1-dist/(2.8*RADIUS_UNIT)); const sz=(on?24:34)+56*t; ctx.fillStyle=wp.color; ctx.font=`${sz.toFixed(0)}px serif`; ctx.fillText(wp.glyph,sx,sy);} for(const br of coldBridges){const p=projectWorld(pathPoint(br).x,pathPoint(br).y);ctx.font='24px serif';ctx.fillText('🌉',p.x,p.y);} for(const wp of coldWhirlpools){const p=projectWorld(pathPoint(wp).x,pathPoint(wp).y);ctx.font='24px serif';ctx.fillText('🌀',p.x,p.y);}
- for(const t of state.terrain){const p=projectWorld(t.x,t.y); if(t.color)ctx.fillStyle=t.color; else ctx.fillStyle='#fff'; if(t.stump){ctx.fillStyle='#4a2b1a';ctx.fillRect(p.x-5,p.y-5,10,10);} else {ctx.font=`${t.size|| (t.glyph==='♜'?22:16)}px serif`; ctx.fillText(t.glyph,p.x,p.y);} }
+ for(const t of state.terrain){const p=projectWorld(t.x,t.y),size=t.size|| (t.glyph==='♜'?22:16);drawGroundShadow(p.x,p.y+Math.min(8,size*.28),Math.max(12,size*.8),Math.max(5,size*.28),t.solid?.34:.22); if(t.color)ctx.fillStyle=t.color; else ctx.fillStyle='#fff'; if(t.stump){ctx.fillStyle='#4a2b1a';ctx.fillRect(p.x-5,p.y-5,10,10);} else {ctx.font=`${size}px serif`; ctx.fillText(t.glyph,p.x,p.y);} }
  for(const item of state.deployables){const p=projectWorld(item.x,item.y);ctx.font=item.type==='decoy'?'25px serif':'19px serif';ctx.fillStyle=item.type==='caltrop'?'#d7d7d7':'#fff';ctx.fillText(item.type==='decoy'?'🛡️':'✣',p.x,p.y);}
  if(state.offerNpc){const age=Math.max(0,state.t-(state.offerNpc.born??state.t)),grow=Math.min(1,age/0.9),orbit=10*(1-grow),p=projectWorld(state.offerNpc.x+Math.cos(age*8)*orbit,state.offerNpc.y+Math.sin(age*8)*orbit);ctx.save();ctx.translate(p.x,p.y);ctx.scale(grow,grow);ctx.font='28px serif';ctx.fillStyle='#fff';ctx.fillText(state.offerNpc.glyph,0,0);ctx.font='12px sans-serif';ctx.fillText('upgrade?',-12,14);ctx.restore();}
- for(const e of state.enemies){const p=projectWorld(e.x,e.y),grow=e.kind==='mushroom'?Math.max(.25,1-(e.growT||0)/3):1,size=(e.archetype==='tank'?24:e.archetype==='charger'?19:e.archetype==='fly'?14:16)*grow*(e.visualScale||1);if(e.kind==='firefly'||e.kind==='fireAnt')drawFieryInsect(e,p,size);else{ctx.font=`${size}px serif`;ctx.fillStyle='#fff';ctx.fillText(e.glyph,p.x,p.y);}if(e.weapon){ctx.font='12px serif';ctx.fillText(e.weapon,p.x+12,p.y-8);}drawStatusIcons(e,p.x,p.y);}
+ for(const e of state.enemies){const p=projectWorld(e.x,e.y),grow=e.kind==='mushroom'?Math.max(.25,1-(e.growT||0)/3):1,size=(e.archetype==='tank'?24:e.archetype==='charger'?19:e.archetype==='fly'?14:16)*grow*(e.visualScale||1);drawGroundShadow(p.x,p.y+Math.min(7,size*.3),Math.max(8,size*.75),Math.max(4,size*.24),e.archetype==='fly'?.18:.34);if(e.kind==='firefly'||e.kind==='fireAnt')drawFieryInsect(e,p,size);else{ctx.font=`${size}px serif`;ctx.fillStyle='#fff';ctx.fillText(e.glyph,p.x,p.y);}if(e.weapon){ctx.font='12px serif';ctx.fillText(e.weapon,p.x+12,p.y-8);}drawStatusIcons(e,p.x,p.y);}
  for(const item of state.pickups){const q=projectWorld(item.x,item.y);ctx.fillStyle=item.color;ctx.font=item.ammo==='arrows'?'18px serif':'14px serif';if(item.ammo==='arrows')ctx.fillText(item.glyph,q.x,q.y);else{ctx.beginPath();ctx.arc(q.x,q.y,3.5,0,Math.PI*2);ctx.fill();}}
  for(const pr of state.projectiles){const p=projectWorld(pr.x,pr.y),a=pr.glyph==='triangle'?(pr.rotation||0):Math.atan2(pr.vy,pr.vx); ctx.save();ctx.translate(p.x,p.y);ctx.rotate(a);ctx.fillStyle=pr.color||'#111'; if(pr.glyph==='triangle'){ctx.beginPath();ctx.moveTo(pr.size*0.7,0);ctx.lineTo(-pr.size*0.45,-pr.size*0.45);ctx.lineTo(-pr.size*0.45,pr.size*0.45);ctx.closePath();ctx.fill();} else if(pr.glyph!=='●'){ctx.font=`${pr.size}px serif`;ctx.fillText(pr.glyph,0,0);} else {ctx.beginPath();ctx.arc(0,0,pr.size*0.25,0,Math.PI*2);ctx.fill();} ctx.restore(); if(pr.element){ctx.font='13px serif';ctx.fillText(ELEMENT_GLYPHS[pr.element],p.x+9,p.y-10);}}
  drawSuitFeedback();
- const pp=projectWorld(state.player.x,state.player.y),aim=Math.atan2(state.mouse.y-innerHeight/2,state.mouse.x-innerWidth/2),w=weaponDef(); ctx.textAlign='center';ctx.textBaseline='middle'; if(state.mount==='horse'&&state.player.unlocked.has('horse')){ctx.font='30px serif';ctx.fillText('🐎',pp.x,pp.y+8);} ctx.font='20px serif';ctx.fillStyle='#fff';ctx.fillText('🙂',pp.x,pp.y); if(state.player.shield){ctx.font='18px serif';ctx.fillText('🛡️',pp.x-18,pp.y+4);}
+ const pp=projectWorld(state.player.x,state.player.y),aim=Math.atan2(state.mouse.y-innerHeight/2,state.mouse.x-innerWidth/2),w=weaponDef(); ctx.textAlign='center';ctx.textBaseline='middle';drawGroundShadow(pp.x,pp.y+10,state.mount==='horse'?25:17,state.mount==='horse'?9:7,.4); if(state.mount==='horse'&&state.player.unlocked.has('horse')){ctx.font='30px serif';ctx.fillText('🐎',pp.x,pp.y+8);} ctx.font='20px serif';ctx.fillStyle='#fff';ctx.fillText('🙂',pp.x,pp.y); if(state.player.shield){ctx.font='18px serif';ctx.fillText('🛡️',pp.x-18,pp.y+4);}
  ctx.save();ctx.translate(pp.x,pp.y); drawHeldWeapon(w,aim); if(state.activeElement&&state.elements[state.activeElement]>0){ctx.font='14px serif';ctx.fillText(ELEMENT_GLYPHS[state.activeElement],Math.cos(aim)*28,Math.sin(aim)*28-10);} ctx.restore(); drawStatusIcons(state.player,pp.x,pp.y);
  const z=getZone(state.player.x,state.player.y); const dx=state.player.x-MAP_CENTER.x,dy=state.player.y-MAP_CENTER.y,rad=(Math.hypot(dx,dy)/(5*CELL*WORLD_SCALE)).toFixed(2),clock=wrap12((Math.atan2(dy,dx)*6/Math.PI)+3).toFixed(2);
  const tiers=metaFor(w.id),showReward=state.pendingReward&&z?.id===state.pendingReward.zone,modeBits=[];
@@ -905,7 +973,7 @@ function render(){updateHudFlashes();ctx.clearRect(0,0,innerWidth,innerHeight); 
  if(w.id==='bow')modeBits.push(`Arrows: ${['regular','element'].map(m=>`<button type="button" data-arrow="${m}">${m}${state.arrowMode===m?'*':''}</button>`).join(' ')}`);
  if(w.id==='cannon')modeBits.push(`Cannon: ${['ball','grape'].map(m=>`<button type="button" data-cannon="${m}">${m}${state.cannonMode===m?'*':''}</button>`).join(' ')}`);
  if(state.player.unlocked.has('shield')&&!['bow','ballista','cannon'].includes(w.id))modeBits.push('<button type="button" data-shield="1">shield (Q)</button>');
- const shopHtml=showReward?`<div class="shop-section"><strong>Upgrades — choose one</strong><br>${state.pendingReward.options.map((o,i)=>`<button type="button" data-reward-index="${i}" ${state.pendingReward.purchased?'disabled':''}>${o.label}</button>`).join(' ')}</div><div class="shop-section"><strong>Consumables</strong><br>${shopConsumables(state.pendingReward.zone)}</div>${state.pendingReward.purchased?'<button type="button" data-start-wave="1">Start next wave</button>':''}`:'';
+ const shopHtml=showReward?`<div class="shop-section"><strong>Upgrades — choose one</strong>${rewardOptionsHtml(state.pendingReward)}</div><div class="shop-section"><strong>Consumables</strong><br>${shopConsumables(state.pendingReward.zone)}</div>${state.pendingReward.purchased?'<button type="button" data-start-wave="1">Start next wave</button>':''}`:'';
  ui.innerHTML=`<strong>${BUILD_VERSION}</strong><br><span class="hud-value ${state.hudFlash.hp>state.t?'hud-flash-health':''}">♥ ${state.player.hp.toFixed(1)}/${state.player.maxHp}</span> · <span class="hud-value ${state.hudFlash.diamonds>state.t?'hud-flash-diamonds':''}">♦ ${state.diamonds}</span><br>Zone: ${z?z.name:'Boundary'} · R ${rad} · ${clock}:00<br>Weapon: ${w.id} · Mount: ${state.mount}<br>Ammo: ➵ ${state.ammo.arrows} · ➳ ${state.ammo.bolts} · 🏺 ${state.ammo.jars} · ● ${state.ammo.pellets} · ⚫ ${state.ammo.cannonballs}${modeBits.length?`<br>${modeBits.join('<br>')}`:''}${shopHtml}<br><button type="button" data-reset-world="1">Reset World</button>`;
  drawWeaponBar(); }
 

@@ -14,6 +14,7 @@
     ['𓆦', '🪰'],
   ]);
   const emojiSequence = /^(?:(?:\p{Extended_Pictographic}|\p{Emoji_Presentation}|\p{Emoji_Modifier}|\uFE0F|\u200D))+$/u;
+  const chessPieces = new Map([['♙','pawn'],['♟','pawn'],['♘','knight'],['♞','knight'],['♗','bishop'],['♝','bishop'],['♖','rook'],['♜','rook'],['♕','queen'],['♛','queen'],['♔','king'],['♚','king']]);
 
   function emit(type,detail){
     if(typeof global.dispatchEvent!=='function'||typeof global.CustomEvent!=='function')return;
@@ -84,12 +85,30 @@
     if(ctx.textBaseline==='middle')top-=size/2;else if(ctx.textBaseline==='bottom'||ctx.textBaseline==='ideographic')top-=size;else if(ctx.textBaseline==='alphabetic')top-=size*.82;
     ctx.drawImage(image,left,top,size,size);
   }
+  function textBoxCenter(ctx,x,y,size){
+    let left=x,top=y;if(ctx.textAlign==='center')left-=size/2;else if(ctx.textAlign==='right'||ctx.textAlign==='end')left-=size;
+    if(ctx.textBaseline==='middle')top-=size/2;else if(ctx.textBaseline==='bottom'||ctx.textBaseline==='ideographic')top-=size;else if(ctx.textBaseline==='alphabetic')top-=size*.82;
+    return{x:left+size/2,y:top+size/2};
+  }
+  function drawChessPiece(ctx,glyph,x,y,size){
+    const type=chessPieces.get(glyph);if(!type)return false;
+    const center=textBoxCenter(ctx,x,y,size),white='♙♘♗♖♕♔'.includes(glyph);
+    ctx.save();ctx.translate(center.x,center.y);ctx.scale(size/32,size/32);ctx.fillStyle=white?'#f5f1df':'#17191b';ctx.strokeStyle=white?'#25292c':'#ece7d8';ctx.lineWidth=1.6;ctx.lineJoin='round';ctx.lineCap='round';
+    const fillStroke=()=>{ctx.fill();ctx.stroke();};
+    ctx.beginPath();ctx.roundRect(-11,11,22,4,1.5);fillStroke();ctx.beginPath();ctx.roundRect(-8,7,16,4,1.2);fillStroke();
+    if(type==='pawn'){ctx.beginPath();ctx.moveTo(-7,7);ctx.quadraticCurveTo(-5,-2,-2,-4);ctx.lineTo(2,-4);ctx.quadraticCurveTo(5,-2,7,7);ctx.closePath();fillStroke();ctx.beginPath();ctx.arc(0,-8,5,0,Math.PI*2);fillStroke();}
+    else if(type==='rook'){ctx.beginPath();ctx.moveTo(-7,7);ctx.lineTo(-6,-5);ctx.lineTo(6,-5);ctx.lineTo(7,7);ctx.closePath();fillStroke();ctx.beginPath();ctx.moveTo(-8,-5);ctx.lineTo(-8,-12);ctx.lineTo(-4,-12);ctx.lineTo(-4,-8);ctx.lineTo(-1,-8);ctx.lineTo(-1,-12);ctx.lineTo(2,-12);ctx.lineTo(2,-8);ctx.lineTo(5,-8);ctx.lineTo(5,-12);ctx.lineTo(8,-12);ctx.lineTo(8,-5);ctx.closePath();fillStroke();}
+    else if(type==='bishop'){ctx.beginPath();ctx.moveTo(-7,7);ctx.quadraticCurveTo(-5,-1,0,-5);ctx.quadraticCurveTo(5,-1,7,7);ctx.closePath();fillStroke();ctx.beginPath();ctx.arc(0,-9,5.5,0,Math.PI*2);fillStroke();ctx.beginPath();ctx.moveTo(-1,-13);ctx.lineTo(2,-6);ctx.stroke();}
+    else if(type==='knight'){ctx.beginPath();ctx.moveTo(-7,7);ctx.quadraticCurveTo(-6,0,-2,-3);ctx.lineTo(-5,-8);ctx.lineTo(1,-14);ctx.lineTo(7,-10);ctx.lineTo(5,-5);ctx.lineTo(8,1);ctx.lineTo(4,4);ctx.lineTo(7,7);ctx.closePath();fillStroke();ctx.beginPath();ctx.arc(2,-9,1,0,Math.PI*2);ctx.fillStyle=white?'#25292c':'#ece7d8';ctx.fill();}
+    else{ctx.beginPath();ctx.moveTo(-7,7);ctx.quadraticCurveTo(-6,-2,-3,-5);ctx.lineTo(3,-5);ctx.quadraticCurveTo(6,-2,7,7);ctx.closePath();fillStroke();ctx.beginPath();ctx.arc(0,-8,4.5,0,Math.PI*2);fillStroke();ctx.beginPath();if(type==='king'){ctx.moveTo(0,-16);ctx.lineTo(0,-10);ctx.moveTo(-3,-13);ctx.lineTo(3,-13);}else{for(let i=-1;i<=1;i++){ctx.moveTo(i*5,-13);ctx.lineTo(i*4,-8);}}ctx.stroke();}
+    ctx.restore();return true;
+  }
   function install(ctx){
     if(!ctx||ctx.__notoEmojiInstalled)return ctx;
     const nativeFillText=ctx.fillText.bind(ctx);ctx.__notoEmojiInstalled=true;
     ctx.fillText=function(text,x,y,maxWidth){
-      const glyph=String(text);if(!shouldUseNoto(glyph))return maxWidth===undefined?nativeFillText(glyph,x,y):nativeFillText(glyph,x,y,maxWidth);
-      const record=loadGlyph(glyph),size=fontPixels(ctx.font);
+      const glyph=String(text),size=fontPixels(ctx.font);if(drawChessPiece(ctx,glyph,x,y,size))return;if(!shouldUseNoto(glyph))return maxWidth===undefined?nativeFillText(glyph,x,y):nativeFillText(glyph,x,y,maxWidth);
+      const record=loadGlyph(glyph);
       if(record?.status==='ready'&&record.image){drawImageLikeText(ctx,rasterFor(record,size),x,y,size);return;}
       drawPlaceholder(ctx,nativeFillText,x,y,size,record?.status==='failed');
     };
