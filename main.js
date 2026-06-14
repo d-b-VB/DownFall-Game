@@ -54,7 +54,7 @@ const zones = [
 ];
 
 const state = { mode:'menu',glyphWeapon:'club',t:0,last:0,keys:new Set(),mouse:{x:0,y:0,down:false,held:0},camera:{x:MAP_CENTER.x,y:MAP_CENTER.y},player:null,projectiles:[],pickups:[],enemies:[],terrain:[],waves:{},mount:'foot',debug:[],diamonds:0,ammo:{arrows:0,bolts:0,jars:0,pellets:0,cannonballs:0},elements:{fire:0,ice:0,poison:0},activeElement:null,meta:{},pendingReward:null,shopOpen:false,offerNpc:null,currentZone:null,run:1,hazards:[],deployables:[],feedback:[],hudFlash:{hp:0,diamonds:0,lastHp:null,lastDiamonds:null},fungusRespawns:{},nextEnemyId:1,finance:{savings:0,debt:0,trust:0,trustAvailable:0,amounts:{savings:5,loan:10,trust:5}},casinoWagers:{coin:1,dice:1,card:1},shopPurchases:{} };
-const BUILD_VERSION = 'v0.15.1 build 2026-06-13 16:36 UTC';
+const BUILD_VERSION = 'v0.15.2 build 2026-06-13 17:02 UTC';
 const wrap12=h=>(h%12+12)%12; const inArc=(h,[s,e])=>{h=wrap12(h);s=wrap12(s);e=wrap12(e);if(s===e)return true;return s<=e?(h>=s&&h<e):(h>=s||h<e)}; const toClockHour=t=>wrap12((t*6/Math.PI)+3);
 const DEPLOYABLE_TOOLS={caltrop:{id:'caltrop',glyph:'✣',kind:'deployable',cooldown:.2},decoy:{id:'decoy',glyph:'🛡️',kind:'deployable',cooldown:.2}};
 const weaponDef=()=>weapons.find(w=>w.id===state.player.weapon)||DEPLOYABLE_TOOLS[state.player.weapon];
@@ -593,7 +593,8 @@ function update(dt){const p=state.player;state.feedback=state.feedback.filter(f=
   const rr=Math.hypot(p.x-MAP_CENTER.x,p.y-MAP_CENTER.y); if(rr>WORLD_MAX_R-20){const s=(WORLD_MAX_R-20)/rr;p.x=MAP_CENTER.x+(p.x-MAP_CENTER.x)*s;p.y=MAP_CENTER.y+(p.y-MAP_CENTER.y)*s;p.vx=0;p.vy=0;}
   state.camera.x+=(p.x-state.camera.x)*0.1; state.camera.y+=(p.y-state.camera.y)*0.1;
   p.attackCooldown=Math.max(0,(p.attackCooldown||0)-dt); if(state.mouse.down&&p.attackCooldown<=0)state.mouse.held+=dt; p.cannonCooldown=Math.max(0,(p.cannonCooldown||0)-dt); if(['bow','ballista','cannon'].includes(p.weapon))p.shield=false; if(['ballista','cannon'].includes(p.weapon))state.mount='foot';
-  if(zone&&!state.pendingReward&&!state.waves[zone.id].spawned&&!state.waves[zone.id].cleared&&!state.enemies.some(e=>e.zone===zone.id&&e.hp>0))spawnWave(zone);
+  const rewardBlocksZone=state.pendingReward?.zone===zone?.id;
+  if(zone&&!rewardBlocksZone&&!state.waves[zone.id].spawned&&!state.waves[zone.id].cleared&&!state.enemies.some(e=>e.zone===zone.id&&e.hp>0))spawnWave(zone);
   if(state.mouse.down&&state.mouse.queuedAttack&&p.attackCooldown<=0&&!isChargeWeapon(weaponDef()))beginMeleeSwing(); if(p.swing>0){p.swing-=dt*3*effectiveWeapon(weaponDef()).swingSpeedMult;doSwingDamage();} passiveMeleeContact(dt);
   for(const pr of state.projectiles){
     projectileCombatStats(pr);
@@ -846,22 +847,17 @@ function fireCharge(){
 
 function hex(x,y,r){ctx.beginPath();for(let i=0;i<6;i++){const a=Math.PI/3*i+Math.PI/6,px=x+Math.cos(a)*r,py=y+Math.sin(a)*r;i?ctx.lineTo(px,py):ctx.moveTo(px,py);}ctx.closePath();}
 const mutedPaletteCache=new Map();
-const ZONE_FLOOR_DESATURATION={orchard:.38,axe:.42,creek:.28,pasture:.36,smith:.44,fletcher:.4,bank:.32,tanner:.46,inn:.42,casino:.48,farrier:.5,armorer:.5,tundra:.25,sawmill:.48,marsh:.42,marches:.38,desert:.3,volcano:.35,mine:.55,frost:.28,swamp:.48,foundry:.52};
+const ZONE_FLOOR_DESATURATION={orchard:.2,axe:.22,creek:.14,pasture:.18,smith:.23,fletcher:.2,bank:.16,tanner:.24,inn:.22,casino:.25,farrier:.26,armorer:.26,tundra:.12,sawmill:.25,marsh:.22,marches:.2,desert:.15,volcano:.18,mine:.28,frost:.14,swamp:.25,foundry:.27};
 function mutedFloorColor(hexColor,zoneId=''){
   const desaturation=ZONE_FLOOR_DESATURATION[zoneId]??.4,key=`${hexColor}:${desaturation}`;
   if(mutedPaletteCache.has(key))return mutedPaletteCache.get(key);
   const value=parseInt(hexColor.slice(1),16),rgb=[value>>16,(value>>8)&255,value&255],gray=rgb[0]*.299+rgb[1]*.587+rgb[2]*.114;
-  const muted=rgb.map(channel=>Math.max(0,Math.min(255,Math.round((channel*(1-desaturation)+gray*desaturation)*.88))));
+  const muted=rgb.map(channel=>Math.max(0,Math.min(255,Math.round((channel*(1-desaturation)+gray*desaturation)*.94))));
   const result=`#${muted.map(channel=>channel.toString(16).padStart(2,'0')).join('')}`;mutedPaletteCache.set(key,result);return result;
 }
 function drawGroundShadow(x,y,width=18,height=7,alpha=.3){ctx.save();ctx.fillStyle=`rgba(0,0,0,${alpha})`;ctx.beginPath();ctx.ellipse(x,y+height*.45,width*.5,height*.5,0,0,Math.PI*2);ctx.fill();ctx.restore();}
-const DARK_GLYPHS=new Set(['♟','♜','♞','♝','♛','♚','🐦‍⬛','🦇','🥷','🪨','🛡️','●','⚫','✣']);
-function contrastDiscColor(glyph,color,alpha=.14){
-  let dark=DARK_GLYPHS.has(glyph);
-  if(color?.startsWith('#')){const n=parseInt(color.slice(1),16),luma=(n>>16)*.299+((n>>8)&255)*.587+(n&255)*.114;dark=luma<105;}
-  return dark?`rgba(245,247,244,${alpha})`:`rgba(5,8,9,${alpha})`;
-}
-function drawContrastDisc(x,y,radius,glyph,color,alpha=.14){ctx.save();ctx.fillStyle=contrastDiscColor(glyph,color,alpha);ctx.beginPath();ctx.arc(x,y,radius,0,Math.PI*2);ctx.fill();ctx.restore();}
+function spotlightColor(alpha=.14){return `rgba(248,249,246,${alpha})`;}
+function drawContrastDisc(x,y,radius,glyph,color,alpha=.14){ctx.save();ctx.fillStyle=spotlightColor(alpha);ctx.beginPath();ctx.arc(x,y,radius,0,Math.PI*2);ctx.fill();ctx.restore();}
 function drawHexBackground(){const size=12,pack=1.34,h=Math.sqrt(3)*size*pack,v=1.5*size*pack,worldW=innerWidth*1.3,worldH=innerHeight*1.3; const r0=Math.floor((state.camera.y-worldH*0.5)/v)-2,r1=Math.ceil((state.camera.y+worldH*0.5)/v)+2,c0=Math.floor((state.camera.x-worldW*0.5)/h)-2,c1=Math.ceil((state.camera.x+worldW*0.5)/h)+2; for(let row=r0;row<=r1;row++){for(let col=c0;col<=c1;col++){const wx=col*h+(row%2?h/2:0),wy=row*v,p=projectWorld(wx,wy); if(p.x<-8||p.x>innerWidth+8||p.y<-8||p.y>innerHeight+8)continue; const z=getZone(wx,wy); const q=col-((row-(row&1))>>1),idx=((q-row)%3+3)%3,base=z?z.palette[idx]:['#080b0d','#0b0f12','#0e1317'][idx]; ctx.fillStyle=z?mutedFloorColor(base,z.id):base; hex(p.x,p.y,size); ctx.fill();}}}
 function drawWaterPath(path,color,highlight,width){const world=smoothPathPoints(path,5),pts=world.map(p=>projectWorld(p.x,p.y));ctx.lineCap='round';ctx.lineJoin='round';for(const [stroke,lw] of [[color,width*0.55],[highlight,Math.max(4,width*0.14)]]){ctx.strokeStyle=stroke;ctx.lineWidth=lw;for(let i=0;i<pts.length-1;i++){const zone=getZone(world[i].x,world[i].y),progress=i/(pts.length-1),marshFade=zone?.id==='marsh'||zone?.id==='swamp'?Math.max(0.08,1-(progress-0.68)/0.32):1;ctx.globalAlpha=marshFade;ctx.beginPath();ctx.moveTo(pts[i].x,pts[i].y);ctx.lineTo(pts[i+1].x,pts[i+1].y);ctx.stroke();}}ctx.globalAlpha=1;}
 function drawRiver(){drawWaterPath(coldRiverPath,'#197fbeff','#e8fbffff',150);}
