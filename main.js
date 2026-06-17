@@ -14,16 +14,16 @@ const WORLD_MAX_R = 6 * RADIUS_UNIT;
 const ring = (a, b) => ({ min: a * 5 * CELL * WORLD_SCALE, max: b * 5 * CELL * WORLD_SCALE });
 
 const weapons = [
-  { id: 'club', glyph: 'club', kind: 'swing', damage: 2.25, knock: 8, pierce: 0.4, reach: 62, cooldown: 0.34 },
+  { id: 'club', glyph: 'club', kind: 'swing', damage: 2.25, knock: 10.5, pierce: 0.4, reach: 62, cooldown: 0.34 },
   { id: 'sling', glyph: '🪢', kind: 'sling', damage: 1.9, knock: 9.4, pierce: 0.5, reach: 280, cooldown: 0.45 },
   { id: 'axe', glyph: '🪓', kind: 'swing', damage: 5.2, knock: 6, pierce: 6.5, reach: 68, cooldown: 0.42 },
   { id: 'sword', glyph: '🗡️', kind: 'swing', damage: 8.2, knock: 1.2, pierce: 9, reach: 72, cooldown: 0.28 },
   { id: 'bow', glyph: '🏹', kind: 'bow', damage: 8.4, knock: 1.8, pierce: 9.5, reach: 440, cooldown: 0.62 },
-  { id: 'ballista', glyph: 'ballista', kind: 'bow', damage: 14, knock: 6, pierce: 11, reach: 520, cooldown: 1.25 },
+  { id: 'ballista', glyph: 'ballista', kind: 'bow', damage: 24, knock: 7, pierce: 11, reach: 520, cooldown: 1.05 },
   { id: 'cannon', glyph: 'cannon', kind: 'cannon', damage: 42, knock: 12, pierce: 2, reach: 560, cooldown: 2 },
 ];
 
-const weaponGlyphPoints = {club:{handleCell:'F1',tipCell:'F12'},sling:{handleCell:null,tipCell:null},axe:{handleCell:'I11',tipCell:'C2'},sword:{handleCell:'C4',tipCell:'I22'},bow:{handleCell:'G4',tipCell:'A11'},ballista:{handleCell:'G4',tipCell:'A10'},cannon:{handleCell:'F-1',tipCell:'F10'}};
+const weaponGlyphPoints = {club:{handleCell:'F1',tipCell:'F12'},sling:{handleCell:null,tipCell:null},axe:{handleCell:'I11',tipCell:'C2'},sword:{handleCell:'C4',tipCell:'I12'},bow:{handleCell:'G4',tipCell:'A11'},ballista:{handleCell:'G4',tipCell:'A10'},cannon:{handleCell:'F-1',tipCell:'F10'}};
 const glyphRows = 'ABCDEFGHIJK'.split('');
 const glyphCols = Array.from({length:12},(_,i)=>String(i+1));
 const glyphTests = [...weapons.map(w=>w.id),'fire','poison','ice','arrow1','arrow2','arrow3','arrow4','arrow5'];
@@ -54,7 +54,7 @@ const zones = [
 ];
 
 const state = { mode:'menu',glyphWeapon:'club',t:0,last:0,keys:new Set(),mouse:{x:0,y:0,down:false,held:0},camera:{x:MAP_CENTER.x,y:MAP_CENTER.y},player:null,projectiles:[],pickups:[],enemies:[],terrain:[],waves:{},mount:'foot',debug:[],diamonds:0,ammo:{arrows:0,bolts:0,jars:0,pellets:0,cannonballs:0},elements:{fire:0,ice:0,poison:0},activeElement:null,meta:{},pendingReward:null,deferredRewards:[],shopOpen:false,offerNpc:null,currentZone:null,run:1,hazards:[],deployables:[],feedback:[],hudFlash:{hp:0,diamonds:0,lastHp:null,lastDiamonds:null},fungusRespawns:{},nextEnemyId:1,finance:{savings:0,debt:0,trust:0,trustAvailable:0,amounts:{savings:5,loan:10,trust:5}},casinoWagers:{coin:1,dice:1,card:1},shopPurchases:{} };
-const BUILD_VERSION = 'v0.18.0 build 2026-06-16 11:12 UTC';
+const BUILD_VERSION = 'v0.19.0 build 2026-06-17 02:18 UTC';
 const wrap12=h=>(h%12+12)%12; const inArc=(h,[s,e])=>{h=wrap12(h);s=wrap12(s);e=wrap12(e);if(s===e)return true;return s<=e?(h>=s&&h<e):(h>=s||h<e)}; const toClockHour=t=>wrap12((t*6/Math.PI)+3);
 const DEPLOYABLE_TOOLS={caltrop:{id:'caltrop',glyph:'✣',kind:'deployable',cooldown:.2},decoy:{id:'decoy',glyph:'🛡️',kind:'deployable',cooldown:.2}};
 const weaponDef=()=>weapons.find(w=>w.id===state.player.weapon)||DEPLOYABLE_TOOLS[state.player.weapon];
@@ -240,7 +240,7 @@ window.chooseReward=chooseReward;
 const maxHpOf=o=>o.maxHp||20;
 function addStatus(o,type,power=1){if(o===state.player&&(o.cloaks||0)>0){o.cloaks--;dbg(`[CLOAK] blocked ${type}`);return;}o.status=o.status||{}; if(type==='poison')o.status.poison=(o.status.poison||0)+power*(1+(metaFor('poison').dose||0)*0.1); if(type==='fire')o.status.fire=(o.status.fire||0)+10*power*(1+(metaFor('fire').damage||0)*0.1)*(1+(metaFor('fire').duration||0)*0.1); if(type==='ice')o.status.ice=Math.max(o.status.ice||0,4*power*(1+(metaFor('ice').duration||0)*0.1));}
 function tickStatus(o,dt,isPlayer=false){if(!o.status)return; const max=maxHpOf(o); if(o.status.poison){const res=isPlayer?Math.min(0.85,(metaFor('player').poisonResist||0)*0.1):0,pot=1+((metaFor('poison').potency||0)+(metaFor('poison').poison||0))*0.1,rate=0.01*Math.sqrt(o.status.poison)*pot*(1-res); o.hp=Math.max(0,o.hp-(max-o.hp)*rate*dt);} if(o.status.fire>0){const dps=Math.max(0,o.status.fire); o.hp=Math.max(0,o.hp-dps*dt); o.status.fire=Math.max(0,o.status.fire-dt);} if(o.status.ice>0){o.status.ice=Math.max(0,o.status.ice-dt);} }
-function resurrect(){ dbg(`[DOWNFALL] run ${state.run} ended; upgrades persist, waves reset`); state.run++; state.player.x=MAP_CENTER.x; state.player.y=MAP_CENTER.y; state.player.vx=0; state.player.vy=0; state.player.maxHp=5+(metaFor('player').maxHp||0); state.player.hp=state.player.maxHp; state.player.status={}; state.player.weapon='club';state.player.lastWeapon='club'; state.player.unlocked=new Set(['club']); state.player.unlockedElements=new Set(); state.player.shield=false; state.player.enchants={}; state.player.caltrops=0; state.player.decoys=0; state.player.cloaks=0; state.mount='foot'; state.enemies=[]; state.projectiles=[]; state.pickups=[]; state.ammo={arrows:0,bolts:0,jars:0,pellets:0,cannonballs:0}; state.elements={fire:0,ice:0,poison:0}; state.activeElement=null; state.deployables=[];state.feedback=[];state.hudFlash={hp:0,diamonds:0,lastHp:state.player.hp,lastDiamonds:0};state.fungusRespawns={};state.nextEnemyId=1; state.player.attackCooldown=0;state.player.attackCooldownTotal=0; const trust=state.finance.trust,liquidPay=Math.min(state.finance.debt,state.diamonds+state.finance.savings),remainingDebt=Math.max(0,state.finance.debt-liquidPay),trustCover=Math.min(remainingDebt,Math.floor(trust*0.1));state.finance={savings:0,debt:0,trust:Math.max(0,trust-trustCover),trustAvailable:0,amounts:{savings:5,loan:10,trust:5}};state.diamonds=0; state.pendingReward=null;state.deferredRewards=[];state.shopOpen=false; state.offerNpc=null; state.currentZone=null;renewDestroyedTerrain(); for(const z of zones) state.waves[z.id]={wave:1,spawned:false,cleared:false}; }
+function resurrect(){ dbg(`[DOWNFALL] run ${state.run} ended; upgrades persist, waves reset`); state.run++; state.player.x=MAP_CENTER.x; state.player.y=MAP_CENTER.y; state.player.vx=0; state.player.vy=0; state.player.maxHp=8+(metaFor('player').maxHp||0); state.player.hp=state.player.maxHp; state.player.status={}; state.player.weapon='club';state.player.lastWeapon='club'; state.player.unlocked=new Set(['club']); state.player.unlockedElements=new Set(); state.player.shield=false; state.player.enchants={}; state.player.caltrops=0; state.player.decoys=0; state.player.cloaks=0; state.mount='foot'; state.enemies=[]; state.projectiles=[]; state.pickups=[]; state.ammo={arrows:0,bolts:0,jars:0,pellets:0,cannonballs:0}; state.elements={fire:0,ice:0,poison:0}; state.activeElement=null; state.deployables=[];state.feedback=[];state.hudFlash={hp:0,diamonds:0,lastHp:state.player.hp,lastDiamonds:0};state.fungusRespawns={};state.nextEnemyId=1; state.player.attackCooldown=0;state.player.attackCooldownTotal=0; const trust=state.finance.trust,liquidPay=Math.min(state.finance.debt,state.diamonds+state.finance.savings),remainingDebt=Math.max(0,state.finance.debt-liquidPay),trustCover=Math.min(remainingDebt,Math.floor(trust*0.1));state.finance={savings:0,debt:0,trust:Math.max(0,trust-trustCover),trustAvailable:0,amounts:{savings:5,loan:10,trust:5}};state.diamonds=0; state.pendingReward=null;state.deferredRewards=[];state.shopOpen=false; state.offerNpc=null; state.currentZone=null;renewDestroyedTerrain(); for(const z of zones) state.waves[z.id]={wave:1,spawned:false,cleared:false}; }
 function randomPointInZone(zone){ for(let tries=0;tries<80;tries++){ const span=((zone.arc[1]-zone.arc[0]+12)%12)||12,h=(zone.arc[0]+Math.random()*span)%12,rr=zone.ring.min+(zone.ring.max-zone.ring.min)*(0.08+Math.random()*0.84),th=(h-3)*Math.PI/6,x=MAP_CENTER.x+Math.cos(th)*rr,y=MAP_CENTER.y+Math.sin(th)*rr; if(!collidesObstacle(x,y))return{x,y}; } return {x:state.player.x+80,y:state.player.y}; }
 function spawnPointOuterEdge(zone,i,count){const span=((zone.arc[1]-zone.arc[0]+12)%12)||12,h=(zone.arc[0]+span*((i+0.5)/count))%12,rr=zone.ring.max-45-Math.random()*80,th=(h-3)*Math.PI/6;return{x:MAP_CENTER.x+Math.cos(th)*rr,y:MAP_CENTER.y+Math.sin(th)*rr};}
 function enemyVariant(zone,wave,i){
@@ -359,7 +359,7 @@ function enemyHitInterval(e){
   if(e.archetype==='charger')return 1;
   if(e.kind==='creek')return e.hopInterval||0.56;
   if(e.archetype==='fly'||['squirrel','innRat','casinoRat','cockroach','rabbit','frostHare','scarab'].includes(e.kind))return 0.1;
-  if(e.archetype==='tank')return 0.85;
+  if(e.archetype==='tank')return 0.25;
   if(e.archetype==='thief')return 0.35;
   return 0.45;
 }
@@ -392,15 +392,17 @@ function resolveEnemySpacing(dt){
       const nx=dx/d,ny=dy/d,push=min-d,speed=Math.hypot(e.vx||0,e.vy||0);e.x-=nx*push*.65;e.y-=ny*push*.65;p.x+=nx*push*.35;p.y+=ny*push*.35;
       const interval=enemyHitInterval(e);if(state.t<(e.nextContactHit||0))continue;e.nextContactHit=state.t+interval;
       let damageMul=1,kbMul=1;
-      if(e.archetype==='tank'){damageMul=2.2;kbMul=1.55;}
-      if(e.archetype==='fly'){damageMul=.25;kbMul=.35;}
+      if(e.archetype==='tank'){damageMul=.38;kbMul=2.1;}
+      if(e.archetype==='fly'){damageMul=.25;kbMul=.8;}
       if(e.archetype==='charger'){damageMul=1.25+Math.min(2.4,speed/170);kbMul=2.2+Math.min(2.2,speed/170);e.beh='recover';e.behaviorT=.7;}
       if(e.archetype==='thief'){
-        damageMul=.18;kbMul=.45;
+        damageMul=.18;kbMul=.85;
         if(!e.fleeing&&state.t>(e.stealCooldown||0)){const stolen=Math.min(state.diamonds,enemyBounty(e));state.diamonds-=stolen;if(stolen>0)spawnSuitFeedback(p.x,p.y+14,'♦',stolen,'#ff6677',{negative:true,direction:1,mergeKey:'diamondLoss'});e.stolen=(e.stolen||0)+stolen;e.fleeing=true;e.stealCooldown=state.t+2;dbg(`[THIEF] ${e.glyph} stole ${stolen}♦ and fled`);}
       }
       const contactKnock=(e.contactKbps??220)*interval*kbMul;p.vx+=nx*contactKnock;p.vy+=ny*contactKnock;
       let hit=(e.contactDps??5.5)*interval*damageMul;
+      if(e.archetype==='tank')hit=Math.min(hit,2.75);
+      if(e.archetype==='charger'){const tier=Math.max(0,Math.min(5,Math.round((e.minR||0)/RADIUS_UNIT))),caps=[5.5,6.5,7.2,7.8,11,14];hit=Math.min(hit,caps[tier]||14);}
       if(e.kind==='eagle')hit*=1+Math.min(1.5,speed/260);
       if(p.shield){const sh=metaFor('shield'),chance=Math.min(.75,.3+(sh.blockChance||0)*.05),block=Math.min(.8,.3+(sh.blockAmount||0)*.05);if(Math.random()<chance){hit*=1-block;p.vx+=nx*22;p.vy+=ny*22;e.vx-=nx*22;e.vy-=ny*22;dbg(`[SHIELD] blocked ${(block*100).toFixed(0)}% contact damage`);}}
       const hpBefore=p.hp;p.hp=Math.max(0,p.hp-hit);showPlayerDamage(hpBefore-p.hp);if((['fireAnt','firefly','salamander','fireDragonfly','volcanoDragon'].includes(e.kind))&&(e.contactEffectCooldown||0)<=0){addStatus(p,'fire',['firefly','fireDragonfly'].includes(e.kind) ? .08 : .22);e.contactEffectCooldown=.75;}if(['spider','swampSpider','snake','desertSnake','scorpion'].includes(e.kind)||e.zone==='swamp'||e.zone==='marsh')addStatus(p,'poison',.02*(e.power||1));if(e.kind==='iceFly')addStatus(p,'ice',.08);
@@ -484,7 +486,7 @@ function applyEnvironmentalHazards(o,dt){
   }
 }
 
-function resetWorld(){const s={x:MAP_CENTER.x,y:MAP_CENTER.y};state.player={x:s.x,y:s.y,vx:0,vy:0,hp:5+(metaFor('player').maxHp||0),maxHp:5+(metaFor('player').maxHp||0),status:{},weapon:'club',lastWeapon:'club',unlocked:new Set(['club']),unlockedElements:new Set(),shield:false,enchants:{},swing:0,swingSerial:0,attackCooldown:0,attackCooldownTotal:0,cannonCooldown:0,lastX:s.x,lastY:s.y}; state.mount='foot'; state.ammo={arrows:0,bolts:0,jars:0,pellets:0,cannonballs:0}; state.slingMode='rock'; state.arrowMode='regular'; state.elements={fire:0,ice:0,poison:0}; state.activeElement=null; state.projectiles=[];state.pickups=[];state.enemies=[];state.terrain=[];state.hazards=[];state.deployables=[];state.feedback=[];state.hudFlash={hp:0,diamonds:0,lastHp:state.player.hp,lastDiamonds:state.diamonds};state.fungusRespawns={};state.nextEnemyId=1;state.waves={};state.pendingReward=null;state.deferredRewards=[];state.shopOpen=false;state.offerNpc=null;state.currentZone=null;state.finance={savings:0,debt:0,trust:0,trustAvailable:0,amounts:{savings:5,loan:10,trust:5}};state.casinoWagers={coin:1,dice:1,card:1};state.shopPurchases={}; for(const z of zones){state.waves[z.id]={wave:1,spawned:false,cleared:false};spawnZoneDecor(z);} spawnNaturalBarriers(); }
+function resetWorld(){const s={x:MAP_CENTER.x,y:MAP_CENTER.y};state.player={x:s.x,y:s.y,vx:0,vy:0,hp:8+(metaFor('player').maxHp||0),maxHp:8+(metaFor('player').maxHp||0),status:{},weapon:'club',lastWeapon:'club',unlocked:new Set(['club']),unlockedElements:new Set(),shield:false,enchants:{},swing:0,swingSerial:0,attackCooldown:0,attackCooldownTotal:0,cannonCooldown:0,lastX:s.x,lastY:s.y}; state.mount='foot'; state.ammo={arrows:0,bolts:0,jars:0,pellets:0,cannonballs:0}; state.slingMode='rock'; state.arrowMode='regular'; state.elements={fire:0,ice:0,poison:0}; state.activeElement=null; state.projectiles=[];state.pickups=[];state.enemies=[];state.terrain=[];state.hazards=[];state.deployables=[];state.feedback=[];state.hudFlash={hp:0,diamonds:0,lastHp:state.player.hp,lastDiamonds:state.diamonds};state.fungusRespawns={};state.nextEnemyId=1;state.waves={};state.pendingReward=null;state.deferredRewards=[];state.shopOpen=false;state.offerNpc=null;state.currentZone=null;state.finance={savings:0,debt:0,trust:0,trustAvailable:0,amounts:{savings:5,loan:10,trust:5}};state.casinoWagers={coin:1,dice:1,card:1};state.shopPurchases={}; for(const z of zones){state.waves[z.id]={wave:1,spawned:false,cleared:false};spawnZoneDecor(z);} spawnNaturalBarriers(); }
 
 // Waterways use 12-hour clock bearings. Cold river: Frosty Mountain -> outer edge of northern Merchant Road -> Tundra/Sawmill barrier -> Marsh -> Swamp. Warm creek: Volcano -> Creekside oxbow -> Pasture/Fletcher boundary -> Marsh -> Swamp.
 const coldRiverPath=[{h:10.25,r:5.05},{h:10.9,r:4.35},{h:11.55,r:4.08},{h:0.25,r:4.02},{h:1.05,r:4.06},{h:1.85,r:4.12},{h:2.5,r:4.28},{h:3.0,r:4.82},{h:3.35,r:5.55}];
@@ -906,7 +908,7 @@ function projectileLaunchSpeed(w,h){
   const footTop=(12*RADIUS_UNIT)/60,horseTop=footTop*2.25,rangedSpeedBoost=1.5;
   if(w.id==='sling')return Math.max(footTop,footTop+h*360)*w.speedMult*rangedSpeedBoost;
   if(w.id==='bow')return (horseTop+h*268)*w.speedMult*rangedSpeedBoost;
-  if(w.id==='ballista')return (horseTop+h*220)*w.speedMult*rangedSpeedBoost;
+  if(w.id==='ballista')return (horseTop+h*260)*w.speedMult*rangedSpeedBoost;
   return (240+h*460)*w.speedMult*rangedSpeedBoost;
 }
 function maxMountedSlingSpeed(){
@@ -923,7 +925,7 @@ function fireCharge(){
     const wobble=Math.max(0,state.mouse.held-0.7);a+=Math.sin(state.t*20)*wobble*0.06;
   }
   if(w.id==='ballista'){
-    if(state.ammo.bolts<=0){dbg('[AMMO] buy ballista bolts in Sawmill Woods');return;}state.ammo.bolts--;glyph='➳';size=36;life=3;damage=14;knock=6;pierce=11;
+    if(state.ammo.bolts<=0){dbg('[AMMO] buy ballista bolts in Sawmill Woods');return;}state.ammo.bolts--;glyph='➳';size=36;life=3;damage=24;knock=7;pierce=11;
   }
   if(w.id==='cannon'){
     if((p.cannonCooldown||0)>0){dbg(`[CANNON] cooling ${(p.cannonCooldown||0).toFixed(1)}s`);return;}if(h<CANNON_FIRE_CHARGE){dbg('[CANNON] needs warm-up');return;}
