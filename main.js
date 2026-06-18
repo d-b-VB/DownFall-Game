@@ -15,11 +15,11 @@ const ring = (a, b) => ({ min: a * 5 * CELL * WORLD_SCALE, max: b * 5 * CELL * W
 
 const weapons = [
   { id: 'club', glyph: 'club', kind: 'swing', damage: 2.25, knock: 10.5, pierce: 0.4, reach: 62, cooldown: 0.34 },
-  { id: 'sling', glyph: '🪢', kind: 'sling', damage: 1.9, knock: 9.4, pierce: 0.5, reach: 280, cooldown: 0.45 },
+  { id: 'sling', glyph: '🪢', kind: 'sling', damage: 6.5, knock: 9.4, pierce: 0.5, reach: 280, cooldown: 0.45 },
   { id: 'axe', glyph: '🪓', kind: 'swing', damage: 5.2, knock: 6, pierce: 6.5, reach: 68, cooldown: 0.42 },
   { id: 'sword', glyph: '🗡️', kind: 'swing', damage: 8.2, knock: 1.2, pierce: 9, reach: 72, cooldown: 0.28 },
-  { id: 'bow', glyph: '🏹', kind: 'bow', damage: 8.4, knock: 1.8, pierce: 9.5, reach: 440, cooldown: 0.62 },
-  { id: 'ballista', glyph: 'ballista', kind: 'bow', damage: 24, knock: 7, pierce: 11, reach: 520, cooldown: 1.05 },
+  { id: 'bow', glyph: '🏹', kind: 'bow', damage: 13.3, knock: 1.8, pierce: 9.5, reach: 440, cooldown: 0.62 },
+  { id: 'ballista', glyph: 'ballista', kind: 'bow', damage: 32, knock: 7, pierce: 11, reach: 520, cooldown: 1.05 },
   { id: 'cannon', glyph: 'cannon', kind: 'cannon', damage: 42, knock: 12, pierce: 2, reach: 560, cooldown: 2 },
 ];
 
@@ -54,7 +54,7 @@ const zones = [
 ];
 
 const state = { mode:'menu',glyphWeapon:'club',t:0,last:0,keys:new Set(),mouse:{x:0,y:0,down:false,held:0},camera:{x:MAP_CENTER.x,y:MAP_CENTER.y},player:null,projectiles:[],pickups:[],enemies:[],terrain:[],waves:{},mount:'foot',debug:[],diamonds:0,ammo:{arrows:0,bolts:0,jars:0,pellets:0,cannonballs:0},elements:{fire:0,ice:0,poison:0},activeElement:null,meta:{},pendingReward:null,deferredRewards:[],shopOpen:false,offerNpc:null,currentZone:null,run:1,hazards:[],deployables:[],feedback:[],hudFlash:{hp:0,diamonds:0,lastHp:null,lastDiamonds:null},fungusRespawns:{},nextEnemyId:1,finance:{savings:0,debt:0,trust:0,trustAvailable:0,amounts:{savings:5,loan:10,trust:5}},casinoWagers:{coin:1,dice:1,card:1},shopPurchases:{} };
-const BUILD_VERSION = 'v0.19.1 build 2026-06-17 02:45 UTC';
+const BUILD_VERSION = 'v0.21.2 build 2026-06-18 02:32 UTC';
 const wrap12=h=>(h%12+12)%12; const inArc=(h,[s,e])=>{h=wrap12(h);s=wrap12(s);e=wrap12(e);if(s===e)return true;return s<=e?(h>=s&&h<e):(h>=s||h<e)}; const toClockHour=t=>wrap12((t*6/Math.PI)+3);
 const DEPLOYABLE_TOOLS={caltrop:{id:'caltrop',glyph:'✣',kind:'deployable',cooldown:.2},decoy:{id:'decoy',glyph:'🛡️',kind:'deployable',cooldown:.2}};
 const weaponDef=()=>weapons.find(w=>w.id===state.player.weapon)||DEPLOYABLE_TOOLS[state.player.weapon];
@@ -65,6 +65,11 @@ const MERCHANT_ZONES = new Set(['bank','tanner','inn','casino','farrier','armore
 const MOUNTAIN_ZONES = new Set(['volcano','frost']);
 const MINOR_ZONES = new Set(['tundra','marsh','desert','mine']);
 const MELEE_WEAPONS = new Set(['club','axe','sword']);
+
+const FOOT_WALK_SPEED = (12 * RADIUS_UNIT) / 60;
+const FULL_SWING_TIP_SPEED = FOOT_WALK_SPEED * 4;
+const speedImpactScale = speed => Math.max(0, speed / FULL_SWING_TIP_SPEED);
+const projectileImpactScale = pr => { const speed=pr.speed||Math.hypot(pr.vx||0,pr.vy||0),reference=Math.max(1,pr.referenceSpeed||pr.launchSpeed||speed||FULL_SWING_TIP_SPEED); return Math.max(0,speed/reference); };
 // Upgrade bushes only organize existing stats. Core choices stay visible immediately;
 // a purchased parent may reveal a small, directly-related group of existing stats.
 const MELEE_UPGRADE_BUSH = {roots:['damage','knockback','cooldown','swingSpeed','reach'],reveals:{}};
@@ -337,11 +342,11 @@ function linkFireAntChains(enemies){
 }
 function enemyContactDpsForZone(zone){
   const tier=Math.max(0,Math.min(5,Math.round(zone.ring.min/RADIUS_UNIT)));
-  const meleeByRing=[5.5,16,34,42,50,64];
+  const meleeByRing=[5.2,9.5,21,26,34,44];
   let dps=meleeByRing[tier]||64;
-  if(zone.id==='orchard')dps=5.5;
-  if(zone.id==='creek')dps=14;
-  if(zone.id==='fletcher')dps=30;
+  if(zone.id==='orchard')dps=5.2;
+  if(zone.id==='creek')dps=8.8;
+  if(zone.id==='fletcher')dps=19;
   if(MERCHANT_ZONES.has(zone.id))dps*=1.2;
   return dps;
 }
@@ -401,9 +406,13 @@ function resolveEnemySpacing(dt){
       }
       const contactKnock=(e.contactKbps??220)*interval*kbMul;p.vx+=nx*contactKnock;p.vy+=ny*contactKnock;
       let hit=(e.contactDps??5.5)*interval*damageMul;
-      if(e.archetype==='tank')hit=Math.min(hit,2.75);
-      if(e.archetype==='charger'){const tier=Math.max(0,Math.min(5,Math.round((e.minR||0)/RADIUS_UNIT))),caps=[5.5,6.5,7.2,7.8,11,14];hit=Math.min(hit,caps[tier]||14);}
+      const tier=Math.max(0,Math.min(5,Math.round((e.minR||0)/RADIUS_UNIT))),wave=e.wave||1,lateScale=Math.pow(1.08,wave-1);
+      if(e.archetype==='tank')hit=Math.min(hit,tier<3?Math.min(8,2.75*lateScale):2.75*lateScale);
+      const dangerousHit=e.archetype==='charger'||['volcanoDragon','furnaceGolem','crocodile','polarBear','bear','yeti','muskOx'].includes(e.kind);
+      if(e.archetype==='charger'){const caps=[5.5,6.5,7.2,9,11,14];hit=Math.min(hit,(caps[tier]||14)*lateScale);}
       if(e.kind==='eagle')hit*=1+Math.min(1.5,speed/260);
+      const preMerchantCap=8,ordinaryLateCap=8+(wave-1)*1.25,dangerLateCap=([preMerchantCap,preMerchantCap,preMerchantCap,9,11,14][tier]||14)*lateScale;
+      hit=Math.min(hit,tier<3?preMerchantCap:(dangerousHit?dangerLateCap:ordinaryLateCap));
       if(p.shield){const sh=metaFor('shield'),chance=Math.min(.75,.3+(sh.blockChance||0)*.05),block=Math.min(.8,.3+(sh.blockAmount||0)*.05);if(Math.random()<chance){hit*=1-block;p.vx+=nx*22;p.vy+=ny*22;e.vx-=nx*22;e.vy-=ny*22;dbg(`[SHIELD] blocked ${(block*100).toFixed(0)}% contact damage`);}}
       const hpBefore=p.hp;p.hp=Math.max(0,p.hp-hit);showPlayerDamage(hpBefore-p.hp);if((['fireAnt','firefly','salamander','fireDragonfly','volcanoDragon'].includes(e.kind))&&(e.contactEffectCooldown||0)<=0){addStatus(p,'fire',['firefly','fireDragonfly'].includes(e.kind) ? .08 : .22);e.contactEffectCooldown=.75;}if(['spider','swampSpider','snake','desertSnake','scorpion'].includes(e.kind)||e.zone==='swamp'||e.zone==='marsh')addStatus(p,'poison',.02*(e.power||1));if(e.kind==='iceFly')addStatus(p,'ice',.08);
     }
@@ -639,7 +648,7 @@ function fireEnemyProjectile(e){
   else {e.shotT=2+Math.random()*2;return;}
   const projectileScale=e.projectileDamageMul||1;damage*=projectileScale;knock*=Math.sqrt(projectileScale);
   if(!['snowyOwl','crow','turkey','eagle','bat','vulture'].includes(e.kind)){vx=ux*speed;vy=uy*speed;}
-  state.projectiles.push({x:e.x+ux*18,y:e.y+uy*18,vx,vy,life,glyph,size,damage,knock,pierce:1,damageMult:1,angle:Math.atan2(vy,vx),speed:Math.hypot(vx,vy),source:`enemy ${e.kind}`,hostile:true,color,element});
+  state.projectiles.push({x:e.x+ux*18,y:e.y+uy*18,vx,vy,life,glyph,size,damage,knock,pierce:1,damageMult:1,angle:Math.atan2(vy,vx),speed:Math.hypot(vx,vy),source:`enemy ${e.kind}`,hostile:true,color,element,referenceSpeed:speed});
 }
 
 function brakeEnemy(e,profile,dt,mult=2.4){
@@ -660,7 +669,7 @@ function antFollowDirection(e,fallbackX,fallbackY){
 function releaseMushroomSpores(e,count=4){
   if((e.sporeCooldown||0)>0)return;e.sporeCooldown=2.6;
   const p=state.player,base=Math.atan2(p.y-e.y,p.x-e.x);
-  for(let i=0;i<count;i++){const a=base+(i-(count-1)/2)*.42+(Math.random()-.5)*.18,speed=72+Math.random()*24;state.projectiles.push({x:e.x,y:e.y,vx:Math.cos(a)*speed,vy:Math.sin(a)*speed,life:4.8,glyph:'●',size:8,damage:.08,knock:.15,pierce:0,damageMult:1,angle:a,speed,source:'mushroom spore',hostile:true,element:'poison',spore:true,sporeZone:e.zone,spiral:(Math.random()<.5?-1:1)*(.65+Math.random()*.35),color:'#a6d56c'});}
+  for(let i=0;i<count;i++){const a=base+(i-(count-1)/2)*.42+(Math.random()-.5)*.18,speed=72+Math.random()*24;state.projectiles.push({x:e.x,y:e.y,vx:Math.cos(a)*speed,vy:Math.sin(a)*speed,life:4.8,glyph:'●',size:8,damage:.08,knock:.15,pierce:0,damageMult:1,angle:a,speed,source:'mushroom spore',hostile:true,element:'poison',referenceSpeed:speed,spore:true,sporeZone:e.zone,spiral:(Math.random()<.5?-1:1)*(.65+Math.random()*.35),color:'#a6d56c'});}
   dbg(`[SPORES] ${e.zone} mushroom released ${count}`);
 }
 function plantMushroom(x,y,zoneId,onTree=false){
@@ -809,8 +818,8 @@ function knockEnemy(e,angle,impulse){
   e.knockbackT=Math.max(e.knockbackT||0,Math.min(0.42,0.1+impulse/620));
 }
 function projectileDamagePotential(pr){
-  const speed=pr.speed||Math.hypot(pr.vx||0,pr.vy||0),speedScale=pr.hostile?1+Math.min(1.5,speed/420):1+Math.min(3,speed/320);
-  return Math.max(.05,(pr.damage||.05)*speedScale*(pr.damageMult||1));
+  const speedScale=projectileImpactScale(pr);
+  return Math.max(.02,(pr.damage||.05)*speedScale*(pr.damageMult||1));
 }
 function projectileCombatStats(pr){
   if(pr.maxHp===undefined){const large=(pr.size||0)>=18||pr.knock>=2.5;pr.maxHp=projectileDamagePotential(pr);pr.hp=pr.maxHp;pr.reflectable=!!(pr.hostile&&large&&!pr.spore);}
@@ -826,13 +835,14 @@ function strikeProjectile(pr,damage,knock,angle,serial){
 function meleeProjectiles(sx,sy,radius,w,damage,knock,angle,serial){
   for(const pr of state.projectiles)if(pr.hostile&&pr.life>0&&Math.hypot(pr.x-sx,pr.y-sy)<radius+(pr.size||8)*.35)strikeProjectile(pr,damage,knock,angle,serial);
 }
-function passiveMeleeContact(dt){const p=state.player,w=effectiveWeapon(weaponDef());if(w.kind!=='swing')return; const a=Math.atan2(state.mouse.y-innerHeight/2,state.mouse.x-innerWidth/2),sx=p.x+Math.cos(a)*w.reach*0.75,sy=p.y+Math.sin(a)*w.reach*0.75,relWeapon=Math.hypot(p.vx||0,p.vy||0);meleeProjectiles(sx,sy,30,w,w.damage*.35*(1+relWeapon/260)*w.damageMult,w.knock*(1+relWeapon/220),a,`touch-${Math.floor(state.t*8)}`); for(const e of state.enemies){const rel=Math.hypot((p.vx||0)-(e.vx||0),(p.vy||0)-(e.vy||0)); if(rel>35&&Math.hypot(e.x-sx,e.y-sy)<38&&state.t>(e.meleeTouch||0)){const spMul=Math.min(2.6,rel/150),dmg=w.damage*0.45*spMul*w.damageMult,kb=w.knock*spMul*14,ang=Math.atan2(e.y-p.y,e.x-p.x); e.hp-=dmg;showEnemyDamage(e,dmg);e.hitT=state.t;e.lunge=5;knockEnemy(e,ang,kb);e.meleeTouch=state.t+0.32;dbg(`[TOUCH:${w.id}] dmg=${dmg.toFixed(2)} rel=${rel.toFixed(1)} hp=${e.hp.toFixed(2)}`);}}}
+function passiveMeleeContact(dt){const p=state.player,w=effectiveWeapon(weaponDef());if(w.kind!=='swing')return; const a=Math.atan2(state.mouse.y-innerHeight/2,state.mouse.x-innerWidth/2),sx=p.x+Math.cos(a)*w.reach*0.75,sy=p.y+Math.sin(a)*w.reach*0.75,playerSpeed=Math.hypot(p.vx||0,p.vy||0),touchScale=speedImpactScale(playerSpeed);meleeProjectiles(sx,sy,30,w,w.damage*touchScale*w.damageMult,w.knock*touchScale*18,a,`touch-${Math.floor(state.t*8)}`); for(const e of state.enemies){const rel=Math.hypot((p.vx||0)-(e.vx||0),(p.vy||0)-(e.vy||0)),impactScale=speedImpactScale(rel); if(impactScale>0.05&&Math.hypot(e.x-sx,e.y-sy)<38&&state.t>(e.meleeTouch||0)){const dmg=w.damage*impactScale*w.damageMult,kb=w.knock*impactScale*18,ang=Math.atan2(e.y-p.y,e.x-p.x); e.hp-=dmg;showEnemyDamage(e,dmg);e.hitT=state.t;e.lunge=5;knockEnemy(e,ang,kb);e.meleeTouch=state.t+0.32;dbg(`[TOUCH:${w.id}] dmg=${dmg.toFixed(2)} kb=${kb.toFixed(1)} rel=${rel.toFixed(1)} scale=${impactScale.toFixed(2)} hp=${e.hp.toFixed(2)}`);}}}
 
 function doSwingDamage(){const p=state.player,w=effectiveWeapon(weaponDef());if(w.kind!=='swing')return; const a=Math.atan2(state.mouse.y-innerHeight/2,state.mouse.x-innerWidth/2); const sx=p.x+Math.cos(a)*w.reach,sy=p.y+Math.sin(a)*w.reach;
- const swingSpeed = Math.hypot(state.player.vx,state.player.vy) + Math.hypot(state.mouse.x-innerWidth/2,state.mouse.y-innerHeight/2)*0.002;
- meleeProjectiles(sx,sy,38,w,w.damage*(1+Math.min(2,swingSpeed/220))*w.damageMult,w.knock*(1+Math.min(2,swingSpeed/220))*18,a,p.swingSerial);
- for(const e of state.enemies){if(e.swingHit!==p.swingSerial&&Math.hypot(e.x-sx,e.y-sy)<45){e.swingHit=p.swingSerial;const spMul=(1+Math.min(2,swingSpeed/220))*w.swingSpeedMult; const dmg=w.damage*spMul*w.damageMult; e.hp-=dmg;showEnemyDamage(e,dmg); e.hitT=state.t;e.lunge=5; if(p.swingElement)addStatus(e,p.swingElement,1); const kb=w.knock*spMul*18; knockEnemy(e,a,kb); dbg(`[SWING:${w.id}] -> enemy ${e.glyph} dmg=${dmg.toFixed(2)} kb=${kb.toFixed(1)} hp=${e.hp.toFixed(2)} ang=${a.toFixed(2)}`);}}
- for(const t of state.terrain){if(t.swingHit!==p.swingSerial&&Math.hypot(t.x-sx,t.y-sy)<45){t.swingHit=p.swingSerial;applyHit(t,w,1);}} }
+ const tipSpeed = Math.hypot(state.player.vx,state.player.vy) + FULL_SWING_TIP_SPEED*w.swingSpeedMult;
+ const impactScale = speedImpactScale(tipSpeed);
+ meleeProjectiles(sx,sy,38,w,w.damage*impactScale*w.damageMult,w.knock*impactScale*18,a,p.swingSerial);
+ for(const e of state.enemies){if(e.swingHit!==p.swingSerial&&Math.hypot(e.x-sx,e.y-sy)<45){e.swingHit=p.swingSerial; const dmg=w.damage*impactScale*w.damageMult; e.hp-=dmg;showEnemyDamage(e,dmg); e.hitT=state.t;e.lunge=5; if(p.swingElement)addStatus(e,p.swingElement,1); const kb=w.knock*impactScale*18; knockEnemy(e,a,kb); dbg(`[SWING:${w.id}] -> enemy ${e.glyph} dmg=${dmg.toFixed(2)} kb=${kb.toFixed(1)} tip=${tipSpeed.toFixed(1)} scale=${impactScale.toFixed(2)} hp=${e.hp.toFixed(2)} ang=${a.toFixed(2)}`);}}
+ for(const t of state.terrain){if(t.swingHit!==p.swingSerial&&Math.hypot(t.x-sx,t.y-sy)<45){t.swingHit=p.swingSerial;applyHit(t,w,impactScale);}} }
 
 
 function deflectProjectile(pr, tx, ty, slow=0.78, turn=0.35){
@@ -848,7 +858,7 @@ function hitChecks(){
   for(let i=0;i<state.projectiles.length;i++)for(let j=i+1;j<state.projectiles.length;j++){
     const a=projectileCombatStats(state.projectiles[i]),b=projectileCombatStats(state.projectiles[j]);if(a.life<=0||b.life<=0||!!a.hostile===!!b.hostile)continue;
     const radius=Math.max(7,(a.size||8)*.28+(b.size||8)*.28);if(Math.hypot(a.x-b.x,a.y-b.y)>radius)continue;
-    const aPower=Math.max(.2,(a.damage||.2)*(1+Math.hypot(a.vx,a.vy)/420)),bPower=Math.max(.2,(b.damage||.2)*(1+Math.hypot(b.vx,b.vy)/420));a.hp-=bPower;b.hp-=aPower;a.hit=b.hit=true;
+    const aPower=Math.max(.02,projectileDamagePotential(a)),bPower=Math.max(.02,projectileDamagePotential(b));a.hp-=bPower;b.hp-=aPower;a.hit=b.hit=true;
     if(a.hp<=0)destroyProjectile(a,'destroyed in flight');if(b.hp<=0)destroyProjectile(b,'destroyed in flight');
   }
   for(const pr of state.projectiles){
@@ -856,7 +866,7 @@ function hitChecks(){
     if(pr.life<=0)continue;
     if(pr.hostile){
       if(Math.hypot(player.x-pr.x,player.y-pr.y)<22){
-        const spMul=1+Math.min(1.5,pr.speed/420);let dmg=Math.min(pr.hp,projectileDamagePotential(pr));
+        const spMul=projectileImpactScale(pr);let dmg=Math.min(pr.hp,projectileDamagePotential(pr));
         if(player.shield){const sh=metaFor('shield'),chance=Math.min(.75,.3+(sh.blockChance||0)*.05),block=Math.min(.8,.3+(sh.blockAmount||0)*.05);if(Math.random()<chance)dmg*=1-block;}
         const hpBefore=player.hp;player.hp=Math.max(0,player.hp-dmg);showPlayerDamage(hpBefore-player.hp);const a=Math.atan2(pr.vy,pr.vx),impulse=pr.knock*spMul*8;player.vx+=Math.cos(a)*impulse;player.vy+=Math.sin(a)*impulse;if(pr.element)addStatus(player,pr.element,pr.spore?0.18:1);pr.hit=true;pr.life=0;dbg(`[ENEMY SHOT] ${pr.source} dmg=${dmg.toFixed(2)} hp=${player.hp.toFixed(2)}`);
       }
@@ -865,7 +875,7 @@ function hitChecks(){
     for(const e of state.enemies){
       if(e===pr.ignore||pr.life<=0)continue;
       if(Math.hypot(e.x-pr.x,e.y-pr.y)<22){
-        const spMul=1+Math.min(3,pr.speed/320),cannon=pr.source==='cannon',dmg=Math.min(pr.hp,projectileDamagePotential(pr));
+        const spMul=projectileImpactScale(pr),cannon=pr.source==='cannon',dmg=Math.min(pr.hp,projectileDamagePotential(pr));
         e.hp-=dmg;showEnemyDamage(e,dmg);e.hitT=state.t;e.lunge=5;if(pr.element)addStatus(e,pr.element,1);
         const kb=pr.knock*spMul*(cannon?10:6),aa=Math.atan2(pr.vy,pr.vx);knockEnemy(e,aa,kb);pr.hit=true;
         dbg(`[HIT] ${pr.source||'proj'} -> enemy ${e.glyph} dmg=${dmg.toFixed(2)} kb=${kb.toFixed(1)} hp=${e.hp.toFixed(2)} ang=${pr.angle.toFixed(2)} spd=${pr.speed.toFixed(1)}`);
@@ -899,7 +909,7 @@ function spawnShards(pr,ignore=null){
   const m=metaFor('jar'),count=3+(m.shards||0),impactSpeed=Math.hypot(pr.vx||0,pr.vy||0),expansion=impactSpeed*1.35+180*(1+(m.shatterSpeed||0)*0.1),baseVx=pr.vx||0,baseVy=pr.vy||0,baseAng=Math.atan2(baseVy,baseVx)||pr.angle;
   for(let i=0;i<count;i++){
     const offset=count===1?Math.PI:(i===0?Math.PI:((i-1)/(count-1))*Math.PI*2),a=baseAng+offset+(Math.random()-0.5)*0.12,vx=baseVx+Math.cos(a)*expansion,vy=baseVy+Math.sin(a)*expansion,sp=Math.hypot(vx,vy);
-    state.projectiles.push({x:pr.x+Math.cos(a)*18,y:pr.y+Math.sin(a)*18,vx,vy,life:0.62,glyph:'triangle',size:9,damage:1.4,knock:6.5,pierce:3,damageMult:0.7,angle:a,speed:sp,source:'jar shard',element:pr.element,ignore,color:'#8b5a2b',rotation:Math.random()*Math.PI*2,spin:(Math.random()<0.5?-1:1)*(9+Math.random()*8)});
+    state.projectiles.push({x:pr.x+Math.cos(a)*18,y:pr.y+Math.sin(a)*18,vx,vy,life:0.62,glyph:'triangle',size:9,damage:1.4,knock:6.5,pierce:3,damageMult:0.7,angle:a,speed:sp,source:'jar shard',element:pr.element,referenceSpeed:sp,ignore,color:'#8b5a2b',rotation:Math.random()*Math.PI*2,spin:(Math.random()<0.5?-1:1)*(9+Math.random()*8)});
   }
   dbg(`[SHATTER] clay jar -> ${count} shards expansion=${expansion.toFixed(0)} impact=${impactSpeed.toFixed(0)}`);
 }
@@ -925,26 +935,26 @@ function fireCharge(){
     const wobble=Math.max(0,state.mouse.held-0.7);a+=Math.sin(state.t*20)*wobble*0.06;
   }
   if(w.id==='ballista'){
-    if(state.ammo.bolts<=0){dbg('[AMMO] buy ballista bolts in Sawmill Woods');return;}state.ammo.bolts--;glyph='➳';size=36;life=3;damage=24;knock=7;pierce=11;
+    if(state.ammo.bolts<=0){dbg('[AMMO] buy ballista bolts in Sawmill Woods');return;}state.ammo.bolts--;glyph='➳';size=36;life=3;damage=w.damage;knock=7;pierce=11;
   }
   if(w.id==='cannon'){
     if((p.cannonCooldown||0)>0){dbg(`[CANNON] cooling ${(p.cannonCooldown||0).toFixed(1)}s`);return;}if(h<CANNON_FIRE_CHARGE){dbg('[CANNON] needs warm-up');return;}
     if(state.cannonMode==='grape'&&p.unlocked.has('grapeshot')){
       if(state.ammo.pellets<6){dbg('[AMMO] grapeshot needs 6 metal pellets');return;}state.ammo.pellets-=6;p.cannonCooldown=1.35;p.attackCooldown=1.35;p.attackCooldownTotal=1.35;p.vx-=Math.cos(a)*70;p.vy-=Math.sin(a)*70;
       const pellet=metaFor('pellet'),pelletDamage=6.5*(1+(pellet.damage||0)*.1),pelletKnock=6*(1+(pellet.knockback||0)*.1);
-      for(let i=-3;i<=3;i++){const aa=a+i*0.11,sv=maxMountedSlingSpeed();state.projectiles.push({x:p.x+Math.cos(a)*30,y:p.y+Math.sin(a)*30,vx:Math.cos(aa)*sv+p.vx,vy:Math.sin(aa)*sv+p.vy,life:0.75,glyph:'●',size:10,damage:pelletDamage,knock:pelletKnock,pierce:4.2,damageMult:1,angle:aa,speed:Math.hypot(Math.cos(aa)*sv+p.vx,Math.sin(aa)*sv+p.vy),source:'grapeshot',color:'#111'});}
+      for(let i=-3;i<=3;i++){const aa=a+i*0.11,sv=maxMountedSlingSpeed();state.projectiles.push({x:p.x+Math.cos(a)*30,y:p.y+Math.sin(a)*30,vx:Math.cos(aa)*sv+p.vx,vy:Math.sin(aa)*sv+p.vy,life:0.75,glyph:'●',size:10,damage:pelletDamage,knock:pelletKnock,pierce:4.2,damageMult:1,angle:aa,speed:Math.hypot(Math.cos(aa)*sv+p.vx,Math.sin(aa)*sv+p.vy),source:'grapeshot',color:'#111',referenceSpeed:sv});}
       for(const e of state.enemies){const da=Math.atan2(Math.sin(Math.atan2(e.y-p.y,e.x-p.x)-a),Math.cos(Math.atan2(e.y-p.y,e.x-p.x)-a)),dist=Math.hypot(e.x-p.x,e.y-p.y);if(Math.abs(da)<0.55&&dist<150){e.vx+=Math.cos(a)*180;e.vy+=Math.sin(a)*180;}}dbg('[CANNON] grapeshot blast');return;
     }
     if(state.ammo.cannonballs<=0){dbg('[AMMO] buy cannonballs at the Foundry');return;}state.ammo.cannonballs--;glyph='●';size=38;damage=42;knock=75;pierce=24;sp=780*w.speedMult;p.cannonCooldown=2;p.vx-=Math.cos(a)*95;p.vy-=Math.sin(a)*95;damageMult=6;life=4;pierces=9;
   }
   if(w.id==='sling'){
-    if(state.slingMode==='pellet'){if(state.ammo.pellets<=0){dbg('[AMMO] buy metal pellets in Smith Town');return;}state.ammo.pellets--;glyph='●';size=10;const pellet=metaFor('pellet');damage=3.6*(1+(pellet.damage||0)*.1);knock=7.2*(1+(pellet.knockback||0)*.1);pierce=3.8;color='#111';recoverable='pellets';}
+    if(state.slingMode==='pellet'){if(state.ammo.pellets<=0){dbg('[AMMO] buy metal pellets in Smith Town');return;}state.ammo.pellets--;glyph='●';size=10;const pellet=metaFor('pellet');damage=15*(1+(pellet.damage||0)*.1);knock=7.2*(1+(pellet.knockback||0)*.1);pierce=3.8;color='#111';recoverable='pellets';}
     else if(['jar','elementJar'].includes(state.slingMode)){if(state.ammo.jars<=0){dbg('[AMMO] buy jars at Sling Creekside');return;}state.ammo.jars--;if(state.slingMode==='elementJar'&&state.activeElement&&state.elements[state.activeElement]>0){element=state.activeElement;state.elements[element]--;}glyph='🏺';size=22;damage=1.3;knock=5.5;pierce=1.2;shards=true;}
-    else{glyph='●';size=18;damage=1.9;knock=9.4;pierce=0.25;color='#777';}
+    else{glyph='●';size=18;damage=w.damage;knock=9.4;pierce=0.25;color='#777';}
   }
-  const pvx=Math.cos(a)*sp+p.vx,pvy=Math.sin(a)*sp+p.vy,pspd=Math.hypot(pvx,pvy);p.attackCooldown=(w.cooldown||0.5)*w.cooldownMult;p.attackCooldownTotal=p.attackCooldown;
-  state.projectiles.push({x:p.x+Math.cos(a)*24,y:p.y+Math.sin(a)*24,vx:pvx,vy:pvy,life,glyph,size,damage,knock,pierce,damageMult,angle:a,speed:pspd,source:w.id,shards,element,pierces,color,recoverable});
-  dbg(`[FIRE] ${w.id} dmg=${damage.toFixed(2)} ang=${a.toFixed(2)} spd=${sp.toFixed(1)} knock=${knock.toFixed(2)} cooldown=${p.attackCooldown.toFixed(2)}`);
+  const referenceSpeed=w.id==='cannon'?sp:projectileLaunchSpeed(w,1),pvx=Math.cos(a)*sp+p.vx,pvy=Math.sin(a)*sp+p.vy,pspd=Math.hypot(pvx,pvy);p.attackCooldown=(w.cooldown||0.5)*w.cooldownMult;p.attackCooldownTotal=p.attackCooldown;
+  state.projectiles.push({x:p.x+Math.cos(a)*24,y:p.y+Math.sin(a)*24,vx:pvx,vy:pvy,life,glyph,size,damage,knock,pierce,damageMult,angle:a,speed:pspd,source:w.id,shards,element,pierces,color,recoverable,referenceSpeed});
+  dbg(`[FIRE] ${w.id} dmg=${damage.toFixed(2)} ang=${a.toFixed(2)} spd=${pspd.toFixed(1)} ref=${referenceSpeed.toFixed(1)} knock=${knock.toFixed(2)} cooldown=${p.attackCooldown.toFixed(2)}`);
 }
 
 function hex(x,y,r){ctx.beginPath();for(let i=0;i<6;i++){const a=Math.PI/3*i+Math.PI/6,px=x+Math.cos(a)*r,py=y+Math.sin(a)*r;i?ctx.lineTo(px,py):ctx.moveTo(px,py);}ctx.closePath();}
