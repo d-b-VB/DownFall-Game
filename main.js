@@ -54,7 +54,7 @@ const zones = [
 ];
 
 const state = { mode:'menu',glyphWeapon:'club',t:0,last:0,keys:new Set(),mouse:{x:0,y:0,vx:0,vy:0,lastT:0,down:false,held:0},camera:{x:MAP_CENTER.x,y:MAP_CENTER.y},player:null,projectiles:[],pickups:[],enemies:[],terrain:[],waves:{},mount:'foot',debug:[],diamonds:0,ammo:{arrows:0,bolts:0,jars:0,pellets:0,cannonballs:0},elements:{fire:0,ice:0,poison:0},activeElement:null,meta:{},pendingReward:null,deferredRewards:[],shopOpen:false,offerNpc:null,currentZone:null,run:1,hazards:[],deployables:[],feedback:[],hudFlash:{hp:0,diamonds:0,lastHp:null,lastDiamonds:null},fungusRespawns:{},nextEnemyId:1,finance:{savings:0,debt:0,trust:0,trustAvailable:0,amounts:{savings:5,loan:10,trust:5}},casinoWagers:{coin:1,dice:1,card:1},shopPurchases:{} };
-const BUILD_VERSION = 'v0.25.0 build 2026-06-19 01:08 UTC';
+const BUILD_VERSION = 'v0.25.1 build 2026-06-19 01:24 UTC';
 const wrap12=h=>(h%12+12)%12; const inArc=(h,[s,e])=>{h=wrap12(h);s=wrap12(s);e=wrap12(e);if(s===e)return true;return s<=e?(h>=s&&h<e):(h>=s||h<e)}; const toClockHour=t=>wrap12((t*6/Math.PI)+3);
 const DEPLOYABLE_TOOLS={caltrop:{id:'caltrop',glyph:'✣',kind:'deployable',cooldown:.2},decoy:{id:'decoy',glyph:'🛡️',kind:'deployable',cooldown:.2}};
 const weaponDef=()=>weapons.find(w=>w.id===state.player.weapon)||DEPLOYABLE_TOOLS[state.player.weapon];
@@ -895,12 +895,12 @@ function meleeProjectiles(sx,sy,radius,w,damage,knock,angle,serial){
 function angleDelta(a,b){return Math.atan2(Math.sin(a-b),Math.cos(a-b));}
 function shaftHit(target,p,a,reach,width){const dx=target.x-p.x,dy=target.y-p.y,along=dx*Math.cos(a)+dy*Math.sin(a),perp=Math.abs(dx*-Math.sin(a)+dy*Math.cos(a));return along>8&&along<reach&&perp<width?{along,perp}:null;}
 function swingHitShape(w,target,a,phase){const p=state.player,dx=target.x-p.x,dy=target.y-p.y,dist=Math.hypot(dx,dy)||1,bearing=Math.atan2(dy,dx),delta=Math.abs(angleDelta(bearing,a));
-  if(w.id==='club'){const wedge=0.92,inside=dist<w.reach+28&&delta<wedge;if(!inside)return null;const leverage=.35+.65*Math.min(1,dist/Math.max(1,w.reach));return{angle:bearing,shape:Math.max(.18,phase)*leverage};}
+  if(w.id==='club'){const wedge=0.92,inside=dist<=w.reach&&delta<wedge;if(!inside)return null;const leverage=.35+.65*Math.min(1,dist/Math.max(1,w.reach));return{angle:bearing,shape:Math.max(.18,phase)*leverage};}
   if(w.id==='axe'){const hx=p.x+Math.cos(a)*w.reach,hy=p.y+Math.sin(a)*w.reach,d=Math.hypot(target.x-hx,target.y-hy);return d<34?{angle:a,shape:Math.max(.15,phase)*(1-d/42)}:null;}
   if(w.id==='sword'){const thrustReach=w.reach*(.48+.52*phase),hit=shaftHit(target,p,a,thrustReach+16,13);if(!hit)return null;const pointBias=.25+.75*Math.min(1,hit.along/Math.max(1,thrustReach));return{angle:a,shape:Math.max(.12,phase)*pointBias};}
   return null;
 }
-function heldContactShape(w,target,a){const p=state.player;if(w.id==='axe'){const hx=p.x+Math.cos(a)*w.reach,hy=p.y+Math.sin(a)*w.reach;return Math.hypot(target.x-hx,target.y-hy)<28?{angle:a,shape:1}:null;}const width=w.id==='sword'?9:17,reach=w.id==='club'?w.reach*.95:w.reach;const hit=shaftHit(target,p,a,reach,width);return hit?{angle:a,shape:w.id==='sword'?(.2+.8*hit.along/reach):(.45+.55*hit.along/reach)}:null;}
+function heldContactShape(w,target,a){const p=state.player;if(w.id==='axe'){const hx=p.x+Math.cos(a)*w.reach,hy=p.y+Math.sin(a)*w.reach;return Math.hypot(target.x-hx,target.y-hy)<28?{angle:a,shape:1}:null;}const width=w.id==='sword'?9:17,reach=w.reach;const hit=shaftHit(target,p,a,reach,width);return hit?{angle:a,shape:w.id==='sword'?(.2+.8*hit.along/reach):(.45+.55*hit.along/reach)}:null;}
 function passiveMeleeContact(dt){const p=state.player,w=effectiveWeapon(weaponDef());if(w.kind!=='swing')return; const a=Math.atan2(state.mouse.y-innerHeight/2,state.mouse.x-innerWidth/2),playerSpeed=Math.hypot(p.vx||0,p.vy||0),mouseSpeed=Math.hypot(state.mouse.vx||0,state.mouse.vy||0)*0.45; for(const e of state.enemies){const hit=heldContactShape(w,e,a);if(!hit)continue;const rel=Math.hypot((p.vx||0)-(e.vx||0),(p.vy||0)-(e.vy||0))+(w.id==='sword'?mouseSpeed:0),impactScale=speedImpactScale(rel)*hit.shape; if(impactScale>0.05&&state.t>(e.meleeTouch||0)){const dmg=w.damage*impactScale*w.damageMult,kb=w.knock*speedKnockScale(rel)*hit.shape*18; e.hp-=dmg;showEnemyDamage(e,dmg);e.hitT=state.t;e.lunge=5;knockEnemy(e,hit.angle,kb);e.meleeTouch=state.t+0.32;dbg(`[TOUCH:${w.id}] dmg=${dmg.toFixed(2)} kb=${kb.toFixed(1)} rel=${rel.toFixed(1)} scale=${impactScale.toFixed(2)} hp=${e.hp.toFixed(2)}`);}}}
 
 function doSwingDamage(){const p=state.player,w=effectiveWeapon(weaponDef());if(w.kind!=='swing')return; const a=Math.atan2(state.mouse.y-innerHeight/2,state.mouse.x-innerWidth/2),phase=Math.max(0,Math.sin(Math.PI*(1-Math.max(0,Math.min(1,p.swing)))));
