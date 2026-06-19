@@ -54,7 +54,7 @@ const zones = [
 ];
 
 const state = { mode:'menu',glyphWeapon:'club',t:0,last:0,keys:new Set(),mouse:{x:0,y:0,vx:0,vy:0,lastT:0,down:false,held:0},camera:{x:MAP_CENTER.x,y:MAP_CENTER.y},player:null,projectiles:[],pickups:[],enemies:[],terrain:[],waves:{},mount:'foot',debug:[],diamonds:0,ammo:{arrows:0,bolts:0,jars:0,pellets:0,cannonballs:0},elements:{fire:0,ice:0,poison:0},activeElement:null,meta:{},pendingReward:null,deferredRewards:[],shopOpen:false,offerNpc:null,currentZone:null,run:1,hazards:[],deployables:[],feedback:[],hudFlash:{hp:0,diamonds:0,lastHp:null,lastDiamonds:null},fungusRespawns:{},nextEnemyId:1,finance:{savings:0,debt:0,trust:0,trustAvailable:0,amounts:{savings:5,loan:10,trust:5}},casinoWagers:{coin:1,dice:1,card:1},shopPurchases:{} };
-const BUILD_VERSION = 'v0.25.2 build 2026-06-19 01:38 UTC';
+const BUILD_VERSION = 'v0.25.3 build 2026-06-19 02:06 UTC';
 const wrap12=h=>(h%12+12)%12; const inArc=(h,[s,e])=>{h=wrap12(h);s=wrap12(s);e=wrap12(e);if(s===e)return true;return s<=e?(h>=s&&h<e):(h>=s||h<e)}; const toClockHour=t=>wrap12((t*6/Math.PI)+3);
 const DEPLOYABLE_TOOLS={caltrop:{id:'caltrop',glyph:'✣',kind:'deployable',cooldown:.2},decoy:{id:'decoy',glyph:'🛡️',kind:'deployable',cooldown:.2}};
 const weaponDef=()=>weapons.find(w=>w.id===state.player.weapon)||DEPLOYABLE_TOOLS[state.player.weapon];
@@ -65,6 +65,7 @@ const MERCHANT_ZONES = new Set(['bank','tanner','inn','casino','farrier','armore
 const MOUNTAIN_ZONES = new Set(['volcano','frost']);
 const MINOR_ZONES = new Set(['tundra','marsh','desert','mine']);
 const MELEE_WEAPONS = new Set(['club','axe','sword']);
+const PX_PER_WORLD = 0.55;
 
 const FOOT_WALK_SPEED = (12 * RADIUS_UNIT) / 60;
 const FULL_SWING_TIP_SPEED = FOOT_WALK_SPEED * 4;
@@ -456,7 +457,7 @@ function resolveEnemySpacing(dt){
   }
 }
 function getZone(x,y){const dx=x-MAP_CENTER.x,dy=y-MAP_CENTER.y,r=Math.hypot(dx,dy),h=toClockHour(Math.atan2(dy,dx)); return zones.find(z=>r>=z.ring.min&&r<z.ring.max&&inArc(h,z.arc))||null;}
-function projectWorld(wx,wy){ const dx=wx-state.camera.x, dy=wy-state.camera.y; const pxPerWorld=0.55; return {x:innerWidth*0.5 + dx*pxPerWorld, y:innerHeight*0.5 + dy*pxPerWorld, scale:1}; }
+function projectWorld(wx,wy){ const dx=wx-state.camera.x, dy=wy-state.camera.y; const pxPerWorld=PX_PER_WORLD; return {x:innerWidth*0.5 + dx*pxPerWorld, y:innerHeight*0.5 + dy*pxPerWorld, scale:1}; }
 
 const DECOR_CONFIG={
   bank:{n:28,g:['🏦','🪨','🧱'],edge:.72},tanner:{n:34,g:['🧵','🪵','🏠'],edge:.72},
@@ -903,7 +904,15 @@ function swingHitShape(w,target,a,phase){const p=state.player,dx=target.x-p.x,dy
 function heldContactShape(w,target,a){const p=state.player;if(w.id==='axe'){const hx=p.x+Math.cos(a)*w.reach,hy=p.y+Math.sin(a)*w.reach;return Math.hypot(target.x-hx,target.y-hy)<28?{angle:a,shape:1}:null;}const width=w.id==='sword'?9:17,reach=w.reach;const hit=shaftHit(target,p,a,reach,width);return hit?{angle:a,shape:w.id==='sword'?(.2+.8*hit.along/reach):(.45+.55*hit.along/reach)}:null;}
 function passiveMeleeContact(dt){const p=state.player,w=effectiveWeapon(weaponDef());if(w.kind!=='swing')return; const a=Math.atan2(state.mouse.y-innerHeight/2,state.mouse.x-innerWidth/2),playerSpeed=Math.hypot(p.vx||0,p.vy||0),mouseSpeed=Math.hypot(state.mouse.vx||0,state.mouse.vy||0)*0.45; for(const e of state.enemies){const hit=heldContactShape(w,e,a);if(!hit)continue;const rel=Math.hypot((p.vx||0)-(e.vx||0),(p.vy||0)-(e.vy||0))+(w.id==='sword'?mouseSpeed:0),impactScale=speedImpactScale(rel)*hit.shape; if(impactScale>0.05&&state.t>(e.meleeTouch||0)){const dmg=w.damage*impactScale*w.damageMult,kb=w.knock*speedKnockScale(rel)*hit.shape*18; e.hp-=dmg;showEnemyDamage(e,dmg);e.hitT=state.t;e.lunge=5;knockEnemy(e,hit.angle,kb);e.meleeTouch=state.t+0.32;dbg(`[TOUCH:${w.id}] dmg=${dmg.toFixed(2)} kb=${kb.toFixed(1)} rel=${rel.toFixed(1)} scale=${impactScale.toFixed(2)} hp=${e.hp.toFixed(2)}`);}}}
 
-function doSwingDamage(){const p=state.player,w=effectiveWeapon(weaponDef());if(w.kind!=='swing')return; const a=Math.atan2(state.mouse.y-innerHeight/2,state.mouse.x-innerWidth/2),swingProgress=1-Math.max(0,Math.min(1,p.swing)),phase=.5+.5*(1-Math.abs(2*swingProgress-1));
+function swingProgressSpeed(progress){
+  progress=Math.max(0,Math.min(1,progress));
+  if(progress<.3)return .5+(progress/.3)*.4;
+  if(progress<.5)return .9+((progress-.3)/.2)*.1;
+  if(progress<.7)return 1-((progress-.5)/.2)*.1;
+  return .9-((progress-.7)/.3)*.4;
+}
+function swingVisualOffset(w){return (w.id==='club'||w.kind==='swing')?Math.sin((1-Math.max(0,state.player.swing))*Math.PI*2.4)*0.9*Math.max(0,state.player.swing):0;}
+function doSwingDamage(){const p=state.player,w=effectiveWeapon(weaponDef());if(w.kind!=='swing')return; const baseAim=Math.atan2(state.mouse.y-innerHeight/2,state.mouse.x-innerWidth/2),a=baseAim+swingVisualOffset(w),swingProgress=1-Math.max(0,Math.min(1,p.swing)),phase=swingProgressSpeed(swingProgress);
  for(const e of state.enemies){if(e.swingHit===p.swingSerial)continue;const hit=swingHitShape(w,e,a,phase);if(!hit||hit.shape<.16)continue;e.swingHit=p.swingSerial;const tipSpeed=Math.hypot(p.vx,p.vy)+FULL_SWING_TIP_SPEED*w.swingSpeedMult*hit.shape,impactScale=speedImpactScale(tipSpeed),knockScale=speedKnockScale(tipSpeed); const dmg=w.damage*impactScale*w.damageMult; e.hp-=dmg;showEnemyDamage(e,dmg); e.hitT=state.t;e.lunge=5; if(p.swingElement)addStatus(e,p.swingElement,1); const kb=w.knock*knockScale*18; knockEnemy(e,hit.angle,kb); dbg(`[SWING:${w.id}] -> enemy ${e.glyph} dmg=${dmg.toFixed(2)} kb=${kb.toFixed(1)} phase=${phase.toFixed(2)} shape=${hit.shape.toFixed(2)} hp=${e.hp.toFixed(2)} ang=${a.toFixed(2)}`);}
  for(const t of state.terrain){if(t.swingHit===p.swingSerial)continue;const hit=swingHitShape(w,t,a,phase);if(hit&&hit.shape>=.16){t.swingHit=p.swingSerial;const tipSpeed=Math.hypot(p.vx,p.vy)+FULL_SWING_TIP_SPEED*w.swingSpeedMult*hit.shape;applyHit(t,w,speedImpactScale(tipSpeed));}} }
 
@@ -1060,7 +1069,19 @@ function drawSpecialGlyph(id, gridW, gridH){
 }
 
 function cellPoint(cell,gridW,gridH){ const m=String(cell||'F1').match(/^([A-K])(-?\d+)$/); if(!m)return{x:-gridW/2,y:0}; const row=glyphRows.indexOf(m[1]),col=Number(m[2]); return{x:((col-0.5)/12)*gridW-gridW/2,y:((row+0.5)/11)*gridH-gridH/2}; }
-function drawHeldWeapon(w, aim){ if(w.kind==='deployable'){ctx.rotate(aim);ctx.font='18px serif';ctx.fillText(w.glyph,20,0);return;} const hold=chargeLevel(state.mouse.held,w.id),reachScale=MELEE_WEAPONS.has(w.id)?1+metaFor(w.id).reach*.1:1, swingViz=(w.id==='club'||w.kind==='swing')?Math.sin((1-Math.max(0,state.player.swing))*Math.PI*2.4)*0.9*Math.max(0,state.player.swing):0, wob=(w.id==='bow'&&state.mouse.down)?Math.sin(state.t*20)*Math.max(0,state.mouse.held-0.7)*0.12:0; const gw=21*reachScale,gh=16.5,pts=weaponGlyphPoints[w.id]||{},hp=cellPoint(pts.handleCell,gw,gh),tp=cellPoint(pts.tipCell,gw,gh),glyphAngle=Math.atan2(tp.y-hp.y,tp.x-hp.x); ctx.rotate(aim+swingViz+wob); ctx.translate(10,0); ctx.rotate(-glyphAngle); ctx.translate(-hp.x,-hp.y); drawWeaponVisual(w,gw,gh,(w.id==='bow'&&state.mouse.down)?hold:0.45); }
+function drawHeldWeapon(w, aim){
+  if(w.kind==='deployable'){ctx.rotate(aim);ctx.font='18px serif';ctx.fillText(w.glyph,20,0);return;}
+  const hold=chargeLevel(state.mouse.held,w.id),reachScale=MELEE_WEAPONS.has(w.id)?1+metaFor(w.id).reach*.1:1,swingViz=swingVisualOffset(w),wob=(w.id==='bow'&&state.mouse.down)?Math.sin(state.t*20)*Math.max(0,state.mouse.held-0.7)*0.12:0;
+  if(w.id==='club'){
+    ctx.rotate(aim+swingViz);
+    ctx.strokeStyle='#6f3f1f';ctx.lineWidth=Math.max(5,7*reachScale);ctx.lineCap='round';ctx.lineJoin='round';
+    ctx.beginPath();ctx.moveTo(7,0);ctx.lineTo(w.reach*PX_PER_WORLD,0);ctx.stroke();
+    ctx.strokeStyle='rgba(35,18,8,.45)';ctx.lineWidth=Math.max(1.5,2*reachScale);ctx.beginPath();ctx.moveTo(w.reach*PX_PER_WORLD-8,0);ctx.lineTo(w.reach*PX_PER_WORLD,0);ctx.stroke();
+    return;
+  }
+  const gw=MELEE_WEAPONS.has(w.id)?Math.max(21,w.reach*PX_PER_WORLD/.86):21*reachScale,gh=16.5,pts=weaponGlyphPoints[w.id]||{},hp=cellPoint(pts.handleCell,gw,gh),tp=cellPoint(pts.tipCell,gw,gh),glyphAngle=Math.atan2(tp.y-hp.y,tp.x-hp.x);
+  ctx.rotate(aim+swingViz+wob); ctx.translate(10,0); ctx.rotate(-glyphAngle); ctx.translate(-hp.x,-hp.y); drawWeaponVisual(w,gw,gh,(w.id==='bow'&&state.mouse.down)?hold:0.45);
+}
 
 
 function renderGlyphTest(){
