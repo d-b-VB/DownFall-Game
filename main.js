@@ -53,8 +53,8 @@ const zones = [
   { id: 'foundry', name: 'Foundry/Monastery', palette: ['#5e4339','#7a5a4f','#a37d6b'], enemy: '👹', unlock: 'cannon', ring: ring(5,6), arc:[8,10], deco:'foundry' },
 ];
 
-const state = { mode:'menu',glyphWeapon:'club',t:0,last:0,keys:new Set(),mouse:{x:0,y:0,vx:0,vy:0,lastT:0,down:false,held:0},camera:{x:MAP_CENTER.x,y:MAP_CENTER.y},player:null,projectiles:[],pickups:[],enemies:[],terrain:[],waves:{},mount:'foot',debug:[],diamonds:0,ammo:{arrows:0,bolts:0,jars:0,pellets:0,cannonballs:0},elements:{fire:0,ice:0,poison:0},activeElement:null,meta:{},pendingReward:null,deferredRewards:[],shopOpen:false,offerNpc:null,currentZone:null,run:1,hazards:[],deployables:[],feedback:[],hudFlash:{hp:0,diamonds:0,lastHp:null,lastDiamonds:null},fungusRespawns:{},nextEnemyId:1,finance:{savings:0,debt:0,trust:0,trustAvailable:0,amounts:{savings:5,loan:10,trust:5}},casinoWagers:{coin:1,dice:1,card:1},shopPurchases:{} };
-const BUILD_VERSION = 'v0.25.3 build 2026-06-19 02:06 UTC';
+const state = { mode:'menu',glyphWeapon:'club',t:0,last:0,keys:new Set(),mouse:{x:0,y:0,vx:0,vy:0,lastT:0,down:false,held:0},camera:{x:MAP_CENTER.x,y:MAP_CENTER.y},player:null,projectiles:[],pickups:[],enemies:[],terrain:[],waves:{},mount:'foot',debug:[],diamonds:0,ammo:{arrows:0,bolts:0,jars:0,pellets:0,cannonballs:0},elements:{fire:0,ice:0,poison:0},activeElement:null,meta:{},pendingReward:null,deferredRewards:[],shopOpen:false,offerNpc:null,currentZone:null,run:1,hazards:[],deployables:[],feedback:[],hudFlash:{hp:0,diamonds:0,lastHp:null,lastDiamonds:null},fungusRespawns:{},nextEnemyId:1,finance:{savings:0,debt:0,trust:0,trustAvailable:0,amounts:{savings:5,loan:10,trust:5}},casinoWagers:{coin:1,dice:1,card:1},shopPurchases:{},damageView:false,damagePreview:null};
+const BUILD_VERSION = 'v0.26.0 build 2026-06-20 14:28 UTC';
 const wrap12=h=>(h%12+12)%12; const inArc=(h,[s,e])=>{h=wrap12(h);s=wrap12(s);e=wrap12(e);if(s===e)return true;return s<=e?(h>=s&&h<e):(h>=s||h<e)}; const toClockHour=t=>wrap12((t*6/Math.PI)+3);
 const DEPLOYABLE_TOOLS={caltrop:{id:'caltrop',glyph:'✣',kind:'deployable',cooldown:.2},decoy:{id:'decoy',glyph:'🛡️',kind:'deployable',cooldown:.2}};
 const weaponDef=()=>weapons.find(w=>w.id===state.player.weapon)||DEPLOYABLE_TOOLS[state.player.weapon];
@@ -260,7 +260,7 @@ window.chooseReward=chooseReward;
 const maxHpOf=o=>o.maxHp||20;
 function addStatus(o,type,power=1){if(o===state.player&&(o.cloaks||0)>0){o.cloaks--;dbg(`[CLOAK] blocked ${type}`);return;}o.status=o.status||{}; if(type==='poison')o.status.poison=(o.status.poison||0)+power*(1+(metaFor('poison').dose||0)*0.1); if(type==='fire')o.status.fire=(o.status.fire||0)+10*power*(1+(metaFor('fire').damage||0)*0.1)*(1+(metaFor('fire').duration||0)*0.1); if(type==='ice')o.status.ice=Math.max(o.status.ice||0,4*power*(1+(metaFor('ice').duration||0)*0.1));}
 function tickStatus(o,dt,isPlayer=false){if(!o.status)return; const max=maxHpOf(o); if(o.status.poison){const res=isPlayer?Math.min(0.85,(metaFor('player').poisonResist||0)*0.1):0,pot=1+((metaFor('poison').potency||0)+(metaFor('poison').poison||0))*0.1,rate=0.01*Math.sqrt(o.status.poison)*pot*(1-res); o.hp=Math.max(0,o.hp-(max-o.hp)*rate*dt);} if(o.status.fire>0){const dps=Math.max(0,o.status.fire); o.hp=Math.max(0,o.hp-dps*dt); o.status.fire=Math.max(0,o.status.fire-dt);} if(o.status.ice>0){o.status.ice=Math.max(0,o.status.ice-dt);} }
-function resurrect(){ dbg(`[DOWNFALL] run ${state.run} ended; upgrades persist, waves reset`); state.run++; state.player.x=MAP_CENTER.x; state.player.y=MAP_CENTER.y; state.player.vx=0; state.player.vy=0; state.player.maxHp=8+(metaFor('player').maxHp||0); state.player.hp=state.player.maxHp; state.player.status={}; state.player.weapon='club';state.player.lastWeapon='club'; state.player.unlocked=new Set(['club']); state.player.unlockedElements=new Set(); state.player.shield=false; state.player.enchants={}; state.player.caltrops=0; state.player.decoys=0; state.player.cloaks=0; state.mount='foot'; state.enemies=[]; state.projectiles=[]; state.pickups=[]; state.ammo={arrows:0,bolts:0,jars:0,pellets:0,cannonballs:0}; state.elements={fire:0,ice:0,poison:0}; state.activeElement=null; state.deployables=[];state.feedback=[];state.hudFlash={hp:0,diamonds:0,lastHp:state.player.hp,lastDiamonds:0};state.fungusRespawns={};state.nextEnemyId=1; state.player.attackCooldown=0;state.player.attackCooldownTotal=0; const trust=state.finance.trust,liquidPay=Math.min(state.finance.debt,state.diamonds+state.finance.savings),remainingDebt=Math.max(0,state.finance.debt-liquidPay),trustCover=Math.min(remainingDebt,Math.floor(trust*0.1));state.finance={savings:0,debt:0,trust:Math.max(0,trust-trustCover),trustAvailable:0,amounts:{savings:5,loan:10,trust:5}};state.diamonds=0; state.pendingReward=null;state.deferredRewards=[];state.shopOpen=false; state.offerNpc=null; state.currentZone=null;renewDestroyedTerrain(); for(const z of zones) state.waves[z.id]={wave:1,spawned:false,cleared:false}; }
+function resurrect(){ dbg(`[DOWNFALL] run ${state.run} ended; upgrades persist, waves reset`); state.run++; state.player.x=MAP_CENTER.x; state.player.y=MAP_CENTER.y; state.player.vx=0; state.player.vy=0; state.player.maxHp=8+(metaFor('player').maxHp||0); state.player.hp=state.player.maxHp; state.player.status={}; state.player.weapon='club';state.player.lastWeapon='club'; state.player.unlocked=new Set(['club']); state.player.unlockedElements=new Set(); state.player.shield=false; state.player.enchants={}; state.player.caltrops=0; state.player.decoys=0; state.player.cloaks=0; state.mount='foot'; state.enemies=[]; state.projectiles=[]; state.pickups=[]; state.ammo={arrows:0,bolts:0,jars:0,pellets:0,cannonballs:0}; state.elements={fire:0,ice:0,poison:0}; state.activeElement=null; state.deployables=[];state.feedback=[];state.damagePreview=null;state.hudFlash={hp:0,diamonds:0,lastHp:state.player.hp,lastDiamonds:0};state.fungusRespawns={};state.nextEnemyId=1; state.player.attackCooldown=0;state.player.attackCooldownTotal=0; const trust=state.finance.trust,liquidPay=Math.min(state.finance.debt,state.diamonds+state.finance.savings),remainingDebt=Math.max(0,state.finance.debt-liquidPay),trustCover=Math.min(remainingDebt,Math.floor(trust*0.1));state.finance={savings:0,debt:0,trust:Math.max(0,trust-trustCover),trustAvailable:0,amounts:{savings:5,loan:10,trust:5}};state.diamonds=0; state.pendingReward=null;state.deferredRewards=[];state.shopOpen=false; state.offerNpc=null; state.currentZone=null;renewDestroyedTerrain(); for(const z of zones) state.waves[z.id]={wave:1,spawned:false,cleared:false}; }
 function randomPointInZone(zone){ for(let tries=0;tries<80;tries++){ const span=((zone.arc[1]-zone.arc[0]+12)%12)||12,h=(zone.arc[0]+Math.random()*span)%12,rr=zone.ring.min+(zone.ring.max-zone.ring.min)*(0.08+Math.random()*0.84),th=(h-3)*Math.PI/6,x=MAP_CENTER.x+Math.cos(th)*rr,y=MAP_CENTER.y+Math.sin(th)*rr; if(!collidesObstacle(x,y))return{x,y}; } return {x:state.player.x+80,y:state.player.y}; }
 function spawnPointOuterEdge(zone,i,count){const span=((zone.arc[1]-zone.arc[0]+12)%12)||12,h=(zone.arc[0]+span*((i+0.5)/count))%12,rr=zone.ring.max-45-Math.random()*80,th=(h-3)*Math.PI/6;return{x:MAP_CENTER.x+Math.cos(th)*rr,y:MAP_CENTER.y+Math.sin(th)*rr};}
 function enemyVariant(zone,wave,i){
@@ -533,7 +533,7 @@ function applyEnvironmentalHazards(o,dt){
   }
 }
 
-function resetWorld(){const s={x:MAP_CENTER.x,y:MAP_CENTER.y};state.player={x:s.x,y:s.y,vx:0,vy:0,hp:8+(metaFor('player').maxHp||0),maxHp:8+(metaFor('player').maxHp||0),status:{},weapon:'club',lastWeapon:'club',unlocked:new Set(['club']),unlockedElements:new Set(),shield:false,enchants:{},swing:0,swingSerial:0,attackCooldown:0,attackCooldownTotal:0,cannonCooldown:0,lastX:s.x,lastY:s.y}; state.mount='foot'; state.ammo={arrows:0,bolts:0,jars:0,pellets:0,cannonballs:0}; state.slingMode='rock'; state.arrowMode='regular'; state.elements={fire:0,ice:0,poison:0}; state.activeElement=null; state.projectiles=[];state.pickups=[];state.enemies=[];state.terrain=[];state.hazards=[];state.deployables=[];state.feedback=[];state.hudFlash={hp:0,diamonds:0,lastHp:state.player.hp,lastDiamonds:state.diamonds};state.fungusRespawns={};state.nextEnemyId=1;state.waves={};state.pendingReward=null;state.deferredRewards=[];state.shopOpen=false;state.offerNpc=null;state.currentZone=null;state.finance={savings:0,debt:0,trust:0,trustAvailable:0,amounts:{savings:5,loan:10,trust:5}};state.casinoWagers={coin:1,dice:1,card:1};state.shopPurchases={}; for(const z of zones){state.waves[z.id]={wave:1,spawned:false,cleared:false};spawnZoneDecor(z);} spawnNaturalBarriers(); }
+function resetWorld(){const s={x:MAP_CENTER.x,y:MAP_CENTER.y};state.player={x:s.x,y:s.y,vx:0,vy:0,hp:8+(metaFor('player').maxHp||0),maxHp:8+(metaFor('player').maxHp||0),status:{},weapon:'club',lastWeapon:'club',unlocked:new Set(['club']),unlockedElements:new Set(),shield:false,enchants:{},swing:0,swingSerial:0,attackCooldown:0,attackCooldownTotal:0,cannonCooldown:0,lastX:s.x,lastY:s.y}; state.mount='foot'; state.ammo={arrows:0,bolts:0,jars:0,pellets:0,cannonballs:0}; state.slingMode='rock'; state.arrowMode='regular'; state.elements={fire:0,ice:0,poison:0}; state.activeElement=null; state.projectiles=[];state.pickups=[];state.enemies=[];state.terrain=[];state.hazards=[];state.deployables=[];state.feedback=[];state.damagePreview=null;state.hudFlash={hp:0,diamonds:0,lastHp:state.player.hp,lastDiamonds:state.diamonds};state.fungusRespawns={};state.nextEnemyId=1;state.waves={};state.pendingReward=null;state.deferredRewards=[];state.shopOpen=false;state.offerNpc=null;state.currentZone=null;state.finance={savings:0,debt:0,trust:0,trustAvailable:0,amounts:{savings:5,loan:10,trust:5}};state.casinoWagers={coin:1,dice:1,card:1};state.shopPurchases={}; for(const z of zones){state.waves[z.id]={wave:1,spawned:false,cleared:false};spawnZoneDecor(z);} spawnNaturalBarriers(); }
 
 // Waterways use 12-hour clock bearings. Cold river: Frosty Mountain -> outer edge of northern Merchant Road -> Tundra/Sawmill barrier -> Marsh -> Swamp. Warm creek: Volcano -> Creekside oxbow -> Pasture/Fletcher boundary -> Marsh -> Swamp.
 const coldRiverPath=[{h:10.25,r:5.05},{h:10.9,r:4.35},{h:11.55,r:4.08},{h:0.25,r:4.02},{h:1.05,r:4.06},{h:1.85,r:4.12},{h:2.5,r:4.28},{h:3.0,r:4.82},{h:3.35,r:5.55}];
@@ -917,6 +917,38 @@ function doSwingDamage(){const p=state.player,w=effectiveWeapon(weaponDef());if(
  for(const t of state.terrain){if(t.swingHit===p.swingSerial)continue;const hit=swingHitShape(w,t,a,phase);if(hit&&hit.shape>=.16){t.swingHit=p.swingSerial;const tipSpeed=Math.hypot(p.vx,p.vy)+FULL_SWING_TIP_SPEED*w.swingSpeedMult*hit.shape;applyHit(t,w,speedImpactScale(tipSpeed));}} }
 
 
+function previewDamageForWeapon(w,shape){const tipSpeed=FULL_SWING_TIP_SPEED*w.swingSpeedMult*shape;return w.damage*speedImpactScale(tipSpeed)*w.damageMult;}
+function heatColor(value,min,max,alpha=.34){const t=max>min?Math.max(0,Math.min(1,(value-min)/(max-min))):1,r=Math.round(40+215*t),g=Math.round(90*(1-Math.abs(t-.5)*2)),b=Math.round(255*(1-t));return `rgba(${r},${g},${b},${alpha})`;}
+function labelHeat(text,x,y){const p=projectWorld(x,y);ctx.save();ctx.font='12px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.lineWidth=3;ctx.strokeStyle='rgba(255,255,255,.86)';ctx.fillStyle='#111';ctx.strokeText(text,p.x,p.y);ctx.fillText(text,p.x,p.y);ctx.restore();}
+function recordMeleeDamagePreview(w,a){
+  if(!state.damageView)return;const p=state.player,samples=[],maxPhase=1;
+  if(w.id==='club')for(let ri=0;ri<6;ri++){const r=(ri+.5)/6*w.reach,leverage=.35+.65*r/Math.max(1,w.reach),shape=maxPhase*leverage,dmg=previewDamageForWeapon(w,shape);for(let ai=-6;ai<=6;ai++){const aa=a+ai*(0.92/6);samples.push({x:p.x+Math.cos(aa)*r,y:p.y+Math.sin(aa)*r,value:dmg,r1:ri/6*w.reach,r2:(ri+1)/6*w.reach,a1:a+(ai-.5)*(0.92/6),a2:a+(ai+.5)*(0.92/6)});}}
+  else if(w.id==='axe'){const hx=p.x+Math.cos(a)*w.reach,hy=p.y+Math.sin(a)*w.reach;for(let i=0;i<6;i++){const d=(i+.5)/6*34,shape=maxPhase*(1-d/42),dmg=previewDamageForWeapon(w,shape);samples.push({x:hx,y:hy,value:dmg,ring:i,radius:(i+1)/6*34});}}
+  else if(w.id==='sword')for(let i=0;i<7;i++){const along=8+(i+.5)/7*(w.reach+8),pointBias=.25+.75*Math.min(1,along/Math.max(1,w.reach)),dmg=previewDamageForWeapon(w,maxPhase*pointBias);samples.push({x:p.x+Math.cos(a)*along,y:p.y+Math.sin(a)*along,value:dmg,along});}
+  const vals=samples.map(s=>s.value),min=Math.min(...vals),max=Math.max(...vals);state.damagePreview={kind:'melee',weapon:w.id,x:p.x,y:p.y,a,reach:w.reach,samples,min,max};
+}
+function recordProjectileDamagePreview(pr){
+  if(!state.damageView)return;const points=[];let x=pr.x,y=pr.y,vx=pr.vx,vy=pr.vy,life=Math.min(pr.life||2,3.5),dt=.08,hp=projectileDamagePotential(pr);
+  for(let t=0;t<=life;t+=dt){const speed=Math.hypot(vx,vy),fake={...pr,speed,referenceSpeed:pr.referenceSpeed};points.push({x,y,value:Math.min(hp,projectileDamagePotential(fake))});const drag=projectileDragFactor(speed,dt,!!pr.spore,pr.drag??1);vx*=drag;vy*=drag;x+=vx*dt;y+=vy*dt;}
+  const vals=points.map(s=>s.value),min=Math.min(...vals),max=Math.max(...vals);state.damagePreview={kind:'projectile',weapon:pr.source,points,min,max};
+}
+function drawDamagePreview(){
+  const pr=state.damagePreview;if(!state.damageView||!pr)return;ctx.save();ctx.lineCap='round';ctx.lineJoin='round';
+  if(pr.kind==='melee'){
+    const p0=projectWorld(pr.x,pr.y);
+    if(pr.weapon==='club')for(const s of pr.samples){ctx.fillStyle=heatColor(s.value,pr.min,pr.max,.27);ctx.beginPath();for(const [r,a] of [[s.r1,s.a1],[s.r2,s.a1],[s.r2,s.a2],[s.r1,s.a2]]){const p=projectWorld(pr.x+Math.cos(a)*r,pr.y+Math.sin(a)*r);ctx.lineTo(p.x,p.y);}ctx.closePath();ctx.fill();}
+    else if(pr.weapon==='axe')for(const s of [...pr.samples].reverse()){const p=projectWorld(s.x,s.y);ctx.fillStyle=heatColor(s.value,pr.min,pr.max,.25);ctx.beginPath();ctx.arc(p.x,p.y,s.radius*PX_PER_WORLD,0,Math.PI*2);ctx.fill();}
+    else {ctx.lineWidth=18;for(const s of pr.samples){const p=projectWorld(s.x,s.y);ctx.strokeStyle=heatColor(s.value,pr.min,pr.max,.36);ctx.beginPath();ctx.moveTo(p0.x,p0.y);ctx.lineTo(p.x,p.y);ctx.stroke();}}
+    const maxS=pr.samples.reduce((best,s)=>s.value>best.value?s:best,pr.samples[0]),minS=pr.samples.reduce((best,s)=>s.value<best.value?s:best,pr.samples[0]);
+    labelHeat(`max ${pr.max.toFixed(1)}`,maxS.x,maxS.y);labelHeat(`min ${pr.min.toFixed(1)}`,minS.x,minS.y);
+  } else {
+    ctx.lineWidth=14;for(let i=0;i<pr.points.length-1;i++){const a=pr.points[i],b=pr.points[i+1],pa=projectWorld(a.x,a.y),pb=projectWorld(b.x,b.y);ctx.strokeStyle=heatColor(a.value,pr.min,pr.max,.34);ctx.beginPath();ctx.moveTo(pa.x,pa.y);ctx.lineTo(pb.x,pb.y);ctx.stroke();}
+    labelHeat(`max ${pr.max.toFixed(1)}`,pr.points[0].x,pr.points[0].y);const last=pr.points.at(-1);labelHeat(`min ${pr.min.toFixed(1)}`,last.x,last.y);
+  }
+  ctx.restore();
+}
+
+
 function deflectProjectile(pr, tx, ty, slow=0.78, turn=0.35){
   const sp=Math.hypot(pr.vx,pr.vy)||1, ux=pr.vx/sp, uy=pr.vy/sp, dx=pr.x-tx, dy=pr.y-ty, d=Math.hypot(dx,dy)||1;
   let nx=dx/d, ny=dy/d, vx=ux*(1-turn)+nx*turn, vy=uy*(1-turn)+ny*turn;
@@ -1028,7 +1060,8 @@ function fireCharge(){
     else{glyph='●';size=18;damage=w.damage;knock=9.4;pierce=0.25;color='#777';}
   }
   const referenceSpeed=w.id==='cannon'?sp:projectileLaunchSpeed(w,1),pvx=Math.cos(a)*sp+p.vx,pvy=Math.sin(a)*sp+p.vy,pspd=Math.hypot(pvx,pvy);p.attackCooldown=(w.cooldown||0.5)*w.cooldownMult;p.attackCooldownTotal=p.attackCooldown;
-  state.projectiles.push({x:p.x+Math.cos(a)*24,y:p.y+Math.sin(a)*24,vx:pvx,vy:pvy,life,glyph,size,damage,knock,pierce,damageMult,angle:a,speed:pspd,source:w.id,shards,element,pierces,color,recoverable,referenceSpeed,drag:projectileDragFor(w.id,state.slingMode)});
+  const fired={x:p.x+Math.cos(a)*24,y:p.y+Math.sin(a)*24,vx:pvx,vy:pvy,life,glyph,size,damage,knock,pierce,damageMult,angle:a,speed:pspd,source:w.id,shards,element,pierces,color,recoverable,referenceSpeed,drag:projectileDragFor(w.id,state.slingMode)};
+  state.projectiles.push(fired);recordProjectileDamagePreview(fired);
   dbg(`[FIRE] ${w.id} dmg=${damage.toFixed(2)} ang=${a.toFixed(2)} spd=${pspd.toFixed(1)} ref=${referenceSpeed.toFixed(1)} knock=${knock.toFixed(2)} cooldown=${p.attackCooldown.toFixed(2)}`);
 }
 
@@ -1076,7 +1109,6 @@ function drawHeldWeapon(w, aim){
     ctx.rotate(aim+swingViz);
     ctx.strokeStyle='#6f3f1f';ctx.lineWidth=Math.max(5,7*reachScale);ctx.lineCap='round';ctx.lineJoin='round';
     ctx.beginPath();ctx.moveTo(7,0);ctx.lineTo(w.reach*PX_PER_WORLD,0);ctx.stroke();
-    ctx.strokeStyle='rgba(35,18,8,.45)';ctx.lineWidth=Math.max(1.5,2*reachScale);ctx.beginPath();ctx.moveTo(w.reach*PX_PER_WORLD-8,0);ctx.lineTo(w.reach*PX_PER_WORLD,0);ctx.stroke();
     return;
   }
   const gw=MELEE_WEAPONS.has(w.id)?Math.max(21,w.reach*PX_PER_WORLD/.86):21*reachScale,gh=16.5,pts=weaponGlyphPoints[w.id]||{},hp=cellPoint(pts.handleCell,gw,gh),tp=cellPoint(pts.tipCell,gw,gh),glyphAngle=Math.atan2(tp.y-hp.y,tp.x-hp.x);
@@ -1173,7 +1205,7 @@ function drawFieryInsect(e,p,size){
   if(e.kind==='firefly'){ctx.save();ctx.globalAlpha=.2+.12*Math.sin(state.t*8+(e.id||0));ctx.fillStyle='#ffe85e';ctx.beginPath();ctx.arc(p.x,p.y,10,0,Math.PI*2);ctx.fill();ctx.restore();}
   ctx.font=`${size}px serif`;ctx.fillStyle='#fff';ctx.fillText(e.glyph,p.x,p.y);
 }
-function render(){updateHudFlashes();ctx.clearRect(0,0,innerWidth,innerHeight); drawHexBackground(); drawRiver(); drawSlingCreek(); drawMountainRims(); for(const f of coldSnowflakePositions()){const p=projectWorld(f.x,f.y);ctx.font='18px serif';ctx.fillStyle='#fff';ctx.fillText('❄️',p.x,p.y);}
+function render(){updateHudFlashes();ctx.clearRect(0,0,innerWidth,innerHeight); drawHexBackground(); drawRiver(); drawSlingCreek(); drawDamagePreview(); drawMountainRims(); for(const f of coldSnowflakePositions()){const p=projectWorld(f.x,f.y);ctx.font='18px serif';ctx.fillStyle='#fff';ctx.fillText('❄️',p.x,p.y);}
   const wps=[
     {id:'volcano',glyph:'🌋',h:7.5,r:4.8*RADIUS_UNIT,color:'#fff'},
     {id:'frost',glyph:'🏔️',h:10.5,r:4.8*RADIUS_UNIT,color:'#fff'},
@@ -1198,6 +1230,7 @@ function render(){updateHudFlashes();ctx.clearRect(0,0,innerWidth,innerHeight); 
  if(w.id==='bow')modeBits.push(`Arrows: ${['regular','element'].map(m=>`<button type="button" data-arrow="${m}">${m}${state.arrowMode===m?'*':''}</button>`).join(' ')}`);
  if(w.id==='cannon')modeBits.push(`Cannon: ${['ball','grape'].map(m=>`<button type="button" data-cannon="${m}">${m}${state.cannonMode===m?'*':''}</button>`).join(' ')}`);
  if(state.player.unlocked.has('shield')&&!['bow','ballista','cannon'].includes(w.id))modeBits.push('<button type="button" data-shield="1">shield (Q)</button>');
+ if(state.damageView)modeBits.push('Damage view: ON (D toggles; heat map persists until next attack)');
  const shopHtml=showReward&&state.shopOpen?`<div class="shop-modal"><strong>Upgrades — choose one</strong>${rewardOptionsHtml(state.pendingReward)}<div class="shop-section"><strong>Consumables</strong><br>${shopConsumables(state.pendingReward.zone)}</div><button type="button" data-close-shop="1">${state.pendingReward.purchased?'Done':'Close'}</button></div>`:'';
  const rewardControls=state.pendingReward?(state.pendingReward.purchased?'<button class="next-wave" type="button" data-start-wave="1">▶ Start next wave</button>':(!state.shopOpen&&showReward?'<button class="next-wave" type="button" data-open-shop="1">◆ Open shop</button>':'')):'';
  ui.innerHTML=`<strong>${BUILD_VERSION}</strong><br><span class="hud-value ${state.hudFlash.hp>state.t?'hud-flash-health':''}">♥ ${state.player.hp.toFixed(1)}/${state.player.maxHp}</span> · <span class="hud-value ${state.hudFlash.diamonds>state.t?'hud-flash-diamonds':''}">♦ ${state.diamonds}</span><br>Zone: ${z?z.name:'Boundary'} · R ${rad} · ${clock}:00<br>Weapon: ${w.id} · Mount: ${state.mount}<br>Ammo: ➵ ${state.ammo.arrows} · ➳ ${state.ammo.bolts} · 🏺 ${state.ammo.jars} · ● ${state.ammo.pellets} · ⚫ ${state.ammo.cannonballs}${modeBits.length?`<br>${modeBits.join('<br>')}`:''}${rewardControls}<br><button type="button" data-reset-world="1">Reset World</button>${shopHtml}`;
@@ -1215,7 +1248,7 @@ function useDeployable(type){
 }
 function beginMeleeSwing(){
   const w=effectiveWeapon(weaponDef());if(w.kind!=='swing'||state.player.attackCooldown>0)return;
-  state.mouse.queuedAttack=false;state.player.swing=1;state.player.swingSerial=(state.player.swingSerial||0)+1;state.player.attackCooldown=(w.cooldown||0.34)*w.cooldownMult;state.player.attackCooldownTotal=state.player.attackCooldown;
+  state.mouse.queuedAttack=false;state.player.swing=1;state.player.swingSerial=(state.player.swingSerial||0)+1;recordMeleeDamagePreview(w,Math.atan2(state.mouse.y-innerHeight/2,state.mouse.x-innerWidth/2)+swingVisualOffset(w));state.player.attackCooldown=(w.cooldown||0.34)*w.cooldownMult;state.player.attackCooldownTotal=state.player.attackCooldown;
   const el=state.player.enchants[state.player.weapon];state.player.swingElement=(state.activeElement===el&&state.elements[el]>0)?el:null;if(state.player.swingElement)state.elements[state.player.swingElement]--;
 }
 function trig(){
@@ -1253,7 +1286,7 @@ addEventListener('pointerleave',hideButtonTooltip);
 ui.addEventListener('focusin',e=>{const button=e.target.closest('[data-tip]');if(button){const r=button.getBoundingClientRect();showButtonTooltip(button,r.left+r.width/2,r.top);}});
 ui.addEventListener('focusout',hideButtonTooltip);
 addEventListener('resize',()=>{canvas.width=innerWidth*devicePixelRatio;canvas.height=innerHeight*devicePixelRatio;ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);});
-addEventListener('keydown',e=>{const k=e.key.toLowerCase();if(k==='escape'){if(state.shopOpen){state.shopOpen=false;return;}setMode('menu');return;}if(state.mode!=='game'||state.shopOpen)return;state.keys.add(k);if(k===' ')trig();if(k==='r')resetWorld();if(k==='m')state.mount=(state.mount==='horse'?'foot':'horse');if(k==='q'&&state.player.unlocked.has('shield')&&!['bow','ballista','cannon'].includes(state.player.weapon))state.player.shield=!state.player.shield;if(/[1-7]/.test(e.key)){const w=weapons[Number(e.key)-1];if(w)selectWeapon(w.id);}if(e.key==='8')selectWeapon('caltrop');if(e.key==='9')selectWeapon('decoy');});
+addEventListener('keydown',e=>{const k=e.key.toLowerCase();if(k==='escape'){if(state.shopOpen){state.shopOpen=false;return;}setMode('menu');return;}if(state.mode!=='game'||state.shopOpen)return;state.keys.add(k);if(k===' ')trig();if(k==='r')resetWorld();if(k==='d'&&!e.repeat){state.damageView=!state.damageView;if(!state.damageView)state.damagePreview=null;dbg(`[DAMAGE VIEW] ${state.damageView?'on':'off'}`);}if(k==='m')state.mount=(state.mount==='horse'?'foot':'horse');if(k==='q'&&state.player.unlocked.has('shield')&&!['bow','ballista','cannon'].includes(state.player.weapon))state.player.shield=!state.player.shield;if(/[1-7]/.test(e.key)){const w=weapons[Number(e.key)-1];if(w)selectWeapon(w.id);}if(e.key==='8')selectWeapon('caltrop');if(e.key==='9')selectWeapon('decoy');});
 addEventListener('keyup',e=>{if(state.mode!=='game')return; state.keys.delete(e.key.toLowerCase()); if(e.key===' ')rel();});
 canvas.addEventListener('mousemove',e=>{const now=performance.now()/1000,dt=Math.max(1/240,now-(state.mouse.lastT||now));state.mouse.vx=(e.clientX-state.mouse.x)/dt;state.mouse.vy=(e.clientY-state.mouse.y)/dt;state.mouse.x=e.clientX;state.mouse.y=e.clientY;state.mouse.lastT=now;});
 canvas.addEventListener('mousedown',()=>{if(state.mode==='game')trig();}); addEventListener('mouseup',()=>{if(state.mode==='game')rel();});
