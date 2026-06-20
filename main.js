@@ -14,9 +14,9 @@ const WORLD_MAX_R = 6 * RADIUS_UNIT;
 const ring = (a, b) => ({ min: a * 5 * CELL * WORLD_SCALE, max: b * 5 * CELL * WORLD_SCALE });
 
 const weapons = [
-  { id: 'club', glyph: 'club', kind: 'swing', damage: 3, knock: 10.5, pierce: 0.4, reach: 62, cooldown: 0.34 },
-  { id: 'sling', glyph: '🪢', kind: 'sling', damage: 6.5, knock: 9.4, pierce: 0.5, reach: 280, cooldown: 0.45 },
-  { id: 'axe', glyph: '🪓', kind: 'swing', damage: 5.2, knock: 6, pierce: 6.5, reach: 68, cooldown: 0.42 },
+  { id: 'club', glyph: 'club', kind: 'swing', damage: 3, knock: 12.5, pierce: 0.4, reach: 62, cooldown: 0.34 },
+  { id: 'sling', glyph: '🪢', kind: 'sling', damage: 6.5, knock: 13, pierce: 0.5, reach: 280, cooldown: 0.45 },
+  { id: 'axe', glyph: '🪓', kind: 'swing', damage: 5.2, knock: 7.2, pierce: 6.5, reach: 68, cooldown: 0.42 },
   { id: 'sword', glyph: '🗡️', kind: 'swing', damage: 8.2, knock: 1.2, pierce: 9, reach: 72, cooldown: 0.28 },
   { id: 'bow', glyph: '🏹', kind: 'bow', damage: 18, knock: 1.45, pierce: 9.5, reach: 440, cooldown: 0.62 },
   { id: 'ballista', glyph: 'ballista', kind: 'bow', damage: 32, knock: 7, pierce: 11, reach: 520, cooldown: 1.05 },
@@ -54,7 +54,7 @@ const zones = [
 ];
 
 const state = { mode:'menu',glyphWeapon:'club',t:0,last:0,keys:new Set(),mouse:{x:0,y:0,vx:0,vy:0,lastT:0,down:false,held:0},camera:{x:MAP_CENTER.x,y:MAP_CENTER.y},player:null,projectiles:[],pickups:[],enemies:[],terrain:[],waves:{},mount:'foot',debug:[],diamonds:0,ammo:{arrows:0,bolts:0,jars:0,pellets:0,cannonballs:0},elements:{fire:0,ice:0,poison:0},activeElement:null,meta:{},pendingReward:null,deferredRewards:[],shopOpen:false,offerNpc:null,currentZone:null,run:1,hazards:[],deployables:[],feedback:[],hudFlash:{hp:0,diamonds:0,lastHp:null,lastDiamonds:null},fungusRespawns:{},nextEnemyId:1,finance:{savings:0,debt:0,trust:0,trustAvailable:0,amounts:{savings:5,loan:10,trust:5}},casinoWagers:{coin:1,dice:1,card:1},shopPurchases:{},damageView:false,damagePreview:null};
-const BUILD_VERSION = 'v0.26.1 build 2026-06-20 15:02 UTC';
+const BUILD_VERSION = 'v0.26.4 build 2026-06-20 16:11 UTC';
 const wrap12=h=>(h%12+12)%12; const inArc=(h,[s,e])=>{h=wrap12(h);s=wrap12(s);e=wrap12(e);if(s===e)return true;return s<=e?(h>=s&&h<e):(h>=s||h<e)}; const toClockHour=t=>wrap12((t*6/Math.PI)+3);
 const DEPLOYABLE_TOOLS={caltrop:{id:'caltrop',glyph:'✣',kind:'deployable',cooldown:.2},decoy:{id:'decoy',glyph:'🛡️',kind:'deployable',cooldown:.2}};
 const weaponDef=()=>weapons.find(w=>w.id===state.player.weapon)||DEPLOYABLE_TOOLS[state.player.weapon];
@@ -898,10 +898,10 @@ function shaftHit(target,p,a,reach,width){const dx=target.x-p.x,dy=target.y-p.y,
 function swingHitShape(w,target,a,phase){const p=state.player,dx=target.x-p.x,dy=target.y-p.y,dist=Math.hypot(dx,dy)||1,bearing=Math.atan2(dy,dx),delta=Math.abs(angleDelta(bearing,a));
   if(w.id==='club'){const wedge=0.92,inside=dist<=w.reach&&delta<wedge;if(!inside)return null;const leverage=.35+.65*Math.min(1,dist/Math.max(1,w.reach));return{angle:bearing,shape:Math.max(.18,phase)*leverage};}
   if(w.id==='axe'){const hx=p.x+Math.cos(a)*w.reach,hy=p.y+Math.sin(a)*w.reach,d=Math.hypot(target.x-hx,target.y-hy);return d<34?{angle:a,shape:Math.max(.15,phase)*(1-d/42)}:null;}
-  if(w.id==='sword'){const thrustReach=w.reach*(.48+.52*phase),hit=shaftHit(target,p,a,thrustReach+16,13);if(!hit)return null;const pointBias=.25+.75*Math.min(1,hit.along/Math.max(1,thrustReach));return{angle:a,shape:Math.max(.12,phase)*pointBias};}
+  if(w.id==='sword'){const thrustReach=w.reach*(.48+.52*phase),hit=shaftHit(target,p,a,thrustReach+16,10);if(!hit)return null;const mid=thrustReach*.58,midBias=.25+.75*(1-Math.min(1,Math.abs(hit.along-mid)/Math.max(1,thrustReach*.58)));return{angle:a,shape:Math.max(.12,phase)*midBias};}
   return null;
 }
-function heldContactShape(w,target,a){const p=state.player;if(w.id==='axe'){const hx=p.x+Math.cos(a)*w.reach,hy=p.y+Math.sin(a)*w.reach;return Math.hypot(target.x-hx,target.y-hy)<28?{angle:a,shape:1}:null;}const width=w.id==='sword'?9:17,reach=w.reach;const hit=shaftHit(target,p,a,reach,width);return hit?{angle:a,shape:w.id==='sword'?(.2+.8*hit.along/reach):(.45+.55*hit.along/reach)}:null;}
+function heldContactShape(w,target,a){const p=state.player;if(w.id==='axe'){const hx=p.x+Math.cos(a)*w.reach,hy=p.y+Math.sin(a)*w.reach;return Math.hypot(target.x-hx,target.y-hy)<28?{angle:a,shape:1}:null;}const width=w.id==='sword'?9:17,reach=w.reach;const hit=shaftHit(target,p,a,reach,width);if(!hit)return null;const swordMid=.55+.45*(1-Math.min(1,Math.abs(hit.along-reach*.58)/Math.max(1,reach*.58)));return{angle:a,shape:w.id==='sword'?swordMid:(.45+.55*hit.along/reach)};}
 function passiveMeleeContact(dt){const p=state.player,w=effectiveWeapon(weaponDef());if(w.kind!=='swing')return; const a=Math.atan2(state.mouse.y-innerHeight/2,state.mouse.x-innerWidth/2),playerSpeed=Math.hypot(p.vx||0,p.vy||0),mouseSpeed=Math.hypot(state.mouse.vx||0,state.mouse.vy||0)*0.45; for(const e of state.enemies){const hit=heldContactShape(w,e,a);if(!hit)continue;const rel=Math.hypot((p.vx||0)-(e.vx||0),(p.vy||0)-(e.vy||0))+(w.id==='sword'?mouseSpeed:0),impactScale=speedImpactScale(rel)*hit.shape; if(impactScale>0.05&&state.t>(e.meleeTouch||0)){const dmg=w.damage*impactScale*w.damageMult,kb=w.knock*speedKnockScale(rel)*hit.shape*18; e.hp-=dmg;showEnemyDamage(e,dmg);e.hitT=state.t;e.lunge=5;knockEnemy(e,hit.angle,kb);e.meleeTouch=state.t+0.32;dbg(`[TOUCH:${w.id}] dmg=${dmg.toFixed(2)} kb=${kb.toFixed(1)} rel=${rel.toFixed(1)} scale=${impactScale.toFixed(2)} hp=${e.hp.toFixed(2)}`);}}}
 
 function swingProgressSpeed(progress){
@@ -911,7 +911,8 @@ function swingProgressSpeed(progress){
   if(progress<.7)return 1-((progress-.5)/.2)*.1;
   return .9-((progress-.7)/.3)*.4;
 }
-function swingVisualOffset(w){return (w.id==='club'||w.kind==='swing')?Math.sin((1-Math.max(0,state.player.swing))*Math.PI*2.4)*0.9*Math.max(0,state.player.swing):0;}
+function swingVisualOffset(w){return (w.id==='club'||w.id==='axe')?Math.sin((1-Math.max(0,state.player.swing))*Math.PI*2.4)*0.9*Math.max(0,state.player.swing):0;}
+function swordThrustOffset(w){if(w.id!=='sword')return 0;const progress=1-Math.max(0,Math.min(1,state.player.swing));return Math.sin(progress*Math.PI)*18;}
 function doSwingDamage(){const p=state.player,w=effectiveWeapon(weaponDef());if(w.kind!=='swing')return; const baseAim=Math.atan2(state.mouse.y-innerHeight/2,state.mouse.x-innerWidth/2),a=baseAim+swingVisualOffset(w),swingProgress=1-Math.max(0,Math.min(1,p.swing)),phase=swingProgressSpeed(swingProgress);
  for(const e of state.enemies){if(e.swingHit===p.swingSerial)continue;const hit=swingHitShape(w,e,a,phase);if(!hit||hit.shape<.16)continue;e.swingHit=p.swingSerial;const tipSpeed=Math.hypot(p.vx,p.vy)+FULL_SWING_TIP_SPEED*w.swingSpeedMult*hit.shape,impactScale=speedImpactScale(tipSpeed),knockScale=speedKnockScale(tipSpeed); const dmg=w.damage*impactScale*w.damageMult; e.hp-=dmg;showEnemyDamage(e,dmg); e.hitT=state.t;e.lunge=5; if(p.swingElement)addStatus(e,p.swingElement,1); const kb=w.knock*knockScale*18; knockEnemy(e,hit.angle,kb); dbg(`[SWING:${w.id}] -> enemy ${e.glyph} dmg=${dmg.toFixed(2)} kb=${kb.toFixed(1)} phase=${phase.toFixed(2)} shape=${hit.shape.toFixed(2)} hp=${e.hp.toFixed(2)} ang=${a.toFixed(2)}`);}
  for(const t of state.terrain){if(t.swingHit===p.swingSerial)continue;const hit=swingHitShape(w,t,a,phase);if(hit&&hit.shape>=.16){t.swingHit=p.swingSerial;const tipSpeed=Math.hypot(p.vx,p.vy)+FULL_SWING_TIP_SPEED*w.swingSpeedMult*hit.shape;applyHit(t,w,speedImpactScale(tipSpeed));}} }
@@ -923,8 +924,8 @@ function labelHeat(text,x,y){const p=projectWorld(x,y);ctx.save();ctx.font='12px
 function recordMeleeDamagePreview(w,a){
   if(!state.damageView)return;const p=state.player,samples=[],maxPhase=1,moveSpeed=Math.hypot(p.vx||0,p.vy||0);
   if(w.id==='club')for(let ri=0;ri<6;ri++){const r=(ri+.5)/6*w.reach,leverage=.35+.65*r/Math.max(1,w.reach);for(let ai=-6;ai<=6;ai++){const aa=a+ai*(0.92/6),edge=Math.min(1,Math.abs(aa-a)/0.92),swingPhase=.5+.5*(1-edge),shape=swingPhase*leverage,dmg=previewDamageForWeapon(w,shape,moveSpeed);samples.push({x:p.x+Math.cos(aa)*r,y:p.y+Math.sin(aa)*r,value:dmg,r1:ri/6*w.reach,r2:(ri+1)/6*w.reach,a1:a+(ai-.5)*(0.92/6),a2:a+(ai+.5)*(0.92/6)});}}
-  else if(w.id==='axe'){const hx=p.x+Math.cos(a)*w.reach,hy=p.y+Math.sin(a)*w.reach;for(let i=0;i<6;i++){const d=(i+.5)/6*34,shape=maxPhase*(1-d/42),dmg=previewDamageForWeapon(w,shape,moveSpeed);samples.push({x:hx,y:hy,value:dmg,ring:i,radius:(i+1)/6*34});}}
-  else if(w.id==='sword')for(let i=0;i<7;i++){const along=8+(i+.5)/7*(w.reach+8),pointBias=.25+.75*Math.min(1,along/Math.max(1,w.reach)),dmg=previewDamageForWeapon(w,maxPhase*pointBias,moveSpeed);samples.push({x:p.x+Math.cos(a)*along,y:p.y+Math.sin(a)*along,value:dmg,along});}
+  else if(w.id==='axe')for(let ri=0;ri<5;ri++){const r1=w.reach-28+ri*(38/5),r2=w.reach-28+(ri+1)*(38/5),r=(r1+r2)/2,headFocus=Math.max(.18,1-Math.abs(r-w.reach)/34);for(let ai=-6;ai<=6;ai++){const aa=a+ai*(0.82/6),edge=Math.min(1,Math.abs(aa-a)/0.82),swingPhase=.5+.5*(1-edge),shape=swingPhase*headFocus,dmg=previewDamageForWeapon(w,shape,moveSpeed);samples.push({x:p.x+Math.cos(aa)*r,y:p.y+Math.sin(aa)*r,value:dmg,r1,r2,a1:a+(ai-.5)*(0.82/6),a2:a+(ai+.5)*(0.82/6)});}}
+  else if(w.id==='sword')for(let i=0;i<9;i++){const along=8+(i+.5)/9*(w.reach+8),mid=w.reach*.58,midBias=.25+.75*(1-Math.min(1,Math.abs(along-mid)/Math.max(1,w.reach*.58))),dmg=previewDamageForWeapon(w,maxPhase*midBias,moveSpeed);samples.push({x:p.x+Math.cos(a)*along,y:p.y+Math.sin(a)*along,value:dmg,along});}
   const vals=samples.map(s=>s.value),min=Math.min(...vals),max=Math.max(...vals);state.damagePreview={kind:'melee',weapon:w.id,x:p.x,y:p.y,a,reach:w.reach,samples,min,max};
 }
 function recordProjectileDamagePreview(pr){
@@ -936,8 +937,7 @@ function drawDamagePreview(){
   const pr=state.damagePreview;if(!state.damageView||!pr)return;ctx.save();ctx.lineCap='round';ctx.lineJoin='round';
   if(pr.kind==='melee'){
     const p0=projectWorld(pr.x,pr.y);
-    if(pr.weapon==='club')for(const s of pr.samples){ctx.fillStyle=heatColor(s.value,pr.min,pr.max,.27);ctx.beginPath();for(const [r,a] of [[s.r1,s.a1],[s.r2,s.a1],[s.r2,s.a2],[s.r1,s.a2]]){const p=projectWorld(pr.x+Math.cos(a)*r,pr.y+Math.sin(a)*r);ctx.lineTo(p.x,p.y);}ctx.closePath();ctx.fill();}
-    else if(pr.weapon==='axe')for(const s of [...pr.samples].reverse()){const p=projectWorld(s.x,s.y);ctx.fillStyle=heatColor(s.value,pr.min,pr.max,.25);ctx.beginPath();ctx.arc(p.x,p.y,s.radius*PX_PER_WORLD,0,Math.PI*2);ctx.fill();}
+    if(pr.weapon==='club'||pr.weapon==='axe')for(const s of pr.samples){ctx.fillStyle=heatColor(s.value,pr.min,pr.max,pr.weapon==='axe'?.3:.27);ctx.beginPath();for(const [r,a] of [[s.r1,s.a1],[s.r2,s.a1],[s.r2,s.a2],[s.r1,s.a2]]){const p=projectWorld(pr.x+Math.cos(a)*r,pr.y+Math.sin(a)*r);ctx.lineTo(p.x,p.y);}ctx.closePath();ctx.fill();}
     else {ctx.lineWidth=18;for(const s of pr.samples){const p=projectWorld(s.x,s.y);ctx.strokeStyle=heatColor(s.value,pr.min,pr.max,.36);ctx.beginPath();ctx.moveTo(p0.x,p0.y);ctx.lineTo(p.x,p.y);ctx.stroke();}}
     const maxS=pr.samples.reduce((best,s)=>s.value>best.value?s:best,pr.samples[0]),minS=pr.samples.reduce((best,s)=>s.value<best.value?s:best,pr.samples[0]);
     labelHeat(`max ${pr.max.toFixed(1)}`,maxS.x,maxS.y);labelHeat(`min ${pr.min.toFixed(1)}`,minS.x,minS.y);
@@ -981,7 +981,7 @@ function hitChecks(){
       if(Math.hypot(e.x-pr.x,e.y-pr.y)<22){
         const spMul=projectileImpactScale(pr),kbMul=projectileKnockScale(pr),cannon=pr.source==='cannon',dmg=Math.min(pr.hp,projectileDamagePotential(pr));
         e.hp-=dmg;showEnemyDamage(e,dmg);e.hitT=state.t;e.lunge=5;if(pr.element)addStatus(e,pr.element,1);
-        const kb=pr.knock*kbMul*(cannon?10:6),aa=Math.atan2(pr.vy,pr.vx);knockEnemy(e,aa,kb);pr.hit=true;
+        const kbFactor=cannon?10:(pr.source==='sling'?10:7.5),kb=pr.knock*kbMul*kbFactor,aa=Math.atan2(pr.vy,pr.vx);knockEnemy(e,aa,kb);pr.hit=true;
         dbg(`[HIT] ${pr.source||'proj'} -> enemy ${e.glyph} dmg=${dmg.toFixed(2)} kb=${kb.toFixed(1)} hp=${e.hp.toFixed(2)} ang=${pr.angle.toFixed(2)} spd=${pr.speed.toFixed(1)}`);
         if(pr.shards){spawnShards(pr,e);pr.shards=false;}
         if(cannon&&pr.pierces>0){pr.pierces--;deflectProjectile(pr,e.x,e.y,0.76,0.32);dbg(`[CANNON] deflect ang=${pr.angle.toFixed(2)} spd=${pr.speed.toFixed(1)} pierces=${pr.pierces}`);}else pr.life=0;
@@ -1055,9 +1055,9 @@ function fireCharge(){
     if(state.ammo.cannonballs<=0){dbg('[AMMO] buy cannonballs at the Foundry');return;}state.ammo.cannonballs--;glyph='●';size=38;damage=42;knock=75;pierce=24;sp=780*w.speedMult;p.cannonCooldown=2;p.vx-=Math.cos(a)*95;p.vy-=Math.sin(a)*95;damageMult=6;life=4;pierces=9;
   }
   if(w.id==='sling'){
-    if(state.slingMode==='pellet'){if(state.ammo.pellets<=0){dbg('[AMMO] buy metal pellets in Smith Town');return;}state.ammo.pellets--;glyph='●';size=10;const pellet=metaFor('pellet');damage=15*(1+(pellet.damage||0)*.1);knock=7.2*(1+(pellet.knockback||0)*.1);pierce=3.8;color='#111';recoverable='pellets';}
+    if(state.slingMode==='pellet'){if(state.ammo.pellets<=0){dbg('[AMMO] buy metal pellets in Smith Town');return;}state.ammo.pellets--;glyph='●';size=10;const pellet=metaFor('pellet');damage=15*(1+(pellet.damage||0)*.1);knock=8.5*(1+(pellet.knockback||0)*.1);pierce=3.8;color='#111';recoverable='pellets';}
     else if(['jar','elementJar'].includes(state.slingMode)){if(state.ammo.jars<=0){dbg('[AMMO] buy jars at Sling Creekside');return;}state.ammo.jars--;if(state.slingMode==='elementJar'&&state.activeElement&&state.elements[state.activeElement]>0){element=state.activeElement;state.elements[element]--;}glyph='🏺';size=22;damage=1.3;knock=5.5;pierce=1.2;shards=true;}
-    else{glyph='●';size=18;damage=w.damage;knock=9.4;pierce=0.25;color='#777';}
+    else{glyph='●';size=18;damage=w.damage;knock=w.knock;pierce=0.25;color='#777';}
   }
   const referenceSpeed=w.id==='cannon'?sp:projectileLaunchSpeed(w,1),pvx=Math.cos(a)*sp+p.vx,pvy=Math.sin(a)*sp+p.vy,pspd=Math.hypot(pvx,pvy);p.attackCooldown=(w.cooldown||0.5)*w.cooldownMult;p.attackCooldownTotal=p.attackCooldown;
   const fired={x:p.x+Math.cos(a)*24,y:p.y+Math.sin(a)*24,vx:pvx,vy:pvy,life,glyph,size,damage,knock,pierce,damageMult,angle:a,speed:pspd,source:w.id,shards,element,pierces,color,recoverable,referenceSpeed,drag:projectileDragFor(w.id,state.slingMode)};
@@ -1087,8 +1087,8 @@ function drawSlingCreek(){drawWaterPath(warmCreekPath,'#22b6d8ff','#e1fbffff',48
 function drawWeaponVisual(w, gridW=700, gridH=620, charge=1){
   ctx.textAlign='center';ctx.textBaseline='middle';
   if(w.id==='club'){ctx.strokeStyle='#6f3f1f';ctx.lineWidth=Math.max(3,gridH*0.045);ctx.lineCap='round';ctx.beginPath();ctx.moveTo(-gridW*0.43,0);ctx.lineTo(gridW*0.43,0);ctx.stroke();return;}
-  if(w.id==='axe'){ctx.strokeStyle='#6f4a2a';ctx.lineWidth=Math.max(2,gridH*.055);ctx.lineCap='round';ctx.beginPath();ctx.moveTo(-gridW*.38,gridH*.3);ctx.lineTo(gridW*.34,-gridH*.28);ctx.stroke();ctx.fillStyle='#cfd8dc';ctx.strokeStyle='#37474f';ctx.lineWidth=Math.max(1,gridH*.025);ctx.beginPath();ctx.moveTo(gridW*.22,-gridH*.38);ctx.quadraticCurveTo(gridW*.48,-gridH*.24,gridW*.36,gridH*.04);ctx.quadraticCurveTo(gridW*.18,-gridH*.02,gridW*.14,-gridH*.22);ctx.closePath();ctx.fill();ctx.stroke();return;}
-  if(w.id==='sword'){ctx.strokeStyle='#8d6e63';ctx.lineWidth=Math.max(2,gridH*.06);ctx.lineCap='round';ctx.beginPath();ctx.moveTo(-gridW*.42,0);ctx.lineTo(-gridW*.22,0);ctx.stroke();ctx.strokeStyle='#cfd8dc';ctx.lineWidth=Math.max(2,gridH*.04);ctx.beginPath();ctx.moveTo(-gridW*.2,0);ctx.lineTo(gridW*.4,0);ctx.stroke();ctx.fillStyle='#eceff1';ctx.beginPath();ctx.moveTo(gridW*.48,0);ctx.lineTo(gridW*.34,-gridH*.07);ctx.lineTo(gridW*.34,gridH*.07);ctx.closePath();ctx.fill();ctx.strokeStyle='#455a64';ctx.lineWidth=1;ctx.stroke();return;}
+  if(w.id==='axe'){ctx.font=`${Math.round(Math.max(gridW,gridH)*0.95)}px serif`;ctx.fillText('🪓',0,0);return;}
+  if(w.id==='sword'){ctx.strokeStyle='#6d4c41';ctx.lineWidth=Math.max(1.5,gridH*.045);ctx.lineCap='round';ctx.beginPath();ctx.moveTo(-gridW*.42,0);ctx.lineTo(-gridW*.24,0);ctx.stroke();ctx.strokeStyle='#e4edf2';ctx.lineWidth=Math.max(1.25,gridH*.028);ctx.lineCap='butt';ctx.beginPath();ctx.moveTo(-gridW*.22,0);ctx.lineTo(gridW*.44,0);ctx.stroke();ctx.strokeStyle='rgba(69,90,100,.75)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(-gridW*.22,0);ctx.lineTo(gridW*.44,0);ctx.stroke();return;}
   if(w.id==='bow'||w.id==='ballista'){const sx=0.56+0.44*charge; ctx.save();ctx.scale(sx,1);ctx.font=`${Math.round(gridH*(w.id==='ballista'?0.82:0.9))}px serif`;ctx.fillText('🏹',0,0);ctx.restore(); if(w.id==='ballista'){ctx.font=`${Math.round(gridH*0.38)}px serif`;ctx.fillText('⚙️',gridW*0.12,gridH*0.08);}return;}
   if(w.id==='cannon'){ctx.save();ctx.rotate(-Math.PI/2);ctx.scale(0.65,1.2);ctx.font=`${Math.round(gridH*0.92)}px serif`;ctx.fillText('🔔',0,0);ctx.restore();return;}
   ctx.font=`${Math.round(gridH*0.9)}px serif`;ctx.fillText(w.glyph,0,0);
@@ -1104,7 +1104,7 @@ function drawSpecialGlyph(id, gridW, gridH){
 function cellPoint(cell,gridW,gridH){ const m=String(cell||'F1').match(/^([A-K])(-?\d+)$/); if(!m)return{x:-gridW/2,y:0}; const row=glyphRows.indexOf(m[1]),col=Number(m[2]); return{x:((col-0.5)/12)*gridW-gridW/2,y:((row+0.5)/11)*gridH-gridH/2}; }
 function drawHeldWeapon(w, aim){
   if(w.kind==='deployable'){ctx.rotate(aim);ctx.font='18px serif';ctx.fillText(w.glyph,20,0);return;}
-  const hold=chargeLevel(state.mouse.held,w.id),reachScale=MELEE_WEAPONS.has(w.id)?1+metaFor(w.id).reach*.1:1,swingViz=swingVisualOffset(w),wob=(w.id==='bow'&&state.mouse.down)?Math.sin(state.t*20)*Math.max(0,state.mouse.held-0.7)*0.12:0;
+  const hold=chargeLevel(state.mouse.held,w.id),reachScale=MELEE_WEAPONS.has(w.id)?1+metaFor(w.id).reach*.1:1,swingViz=swingVisualOffset(w),thrustViz=swordThrustOffset(w),wob=(w.id==='bow'&&state.mouse.down)?Math.sin(state.t*20)*Math.max(0,state.mouse.held-0.7)*0.12:0;
   if(w.id==='club'){
     ctx.rotate(aim+swingViz);
     const clubWidth=Math.max(5,7*reachScale),clubTip=Math.max(7,w.reach*PX_PER_WORLD-clubWidth*.5);
@@ -1113,7 +1113,7 @@ function drawHeldWeapon(w, aim){
     return;
   }
   const gw=MELEE_WEAPONS.has(w.id)?Math.max(21,w.reach*PX_PER_WORLD/.86):21*reachScale,gh=16.5,pts=weaponGlyphPoints[w.id]||{},hp=cellPoint(pts.handleCell,gw,gh),tp=cellPoint(pts.tipCell,gw,gh),glyphAngle=Math.atan2(tp.y-hp.y,tp.x-hp.x);
-  ctx.rotate(aim+swingViz+wob); ctx.translate(10,0); ctx.rotate(-glyphAngle); ctx.translate(-hp.x,-hp.y); drawWeaponVisual(w,gw,gh,(w.id==='bow'&&state.mouse.down)?hold:0.45);
+  ctx.rotate(aim+swingViz+wob); ctx.translate(10+thrustViz,0); ctx.rotate(-glyphAngle); ctx.translate(-hp.x,-hp.y); drawWeaponVisual(w,gw,gh,(w.id==='bow'&&state.mouse.down)?hold:0.45);
 }
 
 
