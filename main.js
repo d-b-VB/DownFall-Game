@@ -14,7 +14,7 @@ const WORLD_MAX_R = 6 * RADIUS_UNIT;
 const ring = (a, b) => ({ min: a * 5 * CELL * WORLD_SCALE, max: b * 5 * CELL * WORLD_SCALE });
 
 const weapons = [
-  { id: 'club', glyph: 'club', kind: 'swing', damage: 2.25, knock: 10.5, pierce: 0.4, reach: 62, cooldown: 0.34 },
+  { id: 'club', glyph: 'club', kind: 'swing', damage: 3, knock: 10.5, pierce: 0.4, reach: 62, cooldown: 0.34 },
   { id: 'sling', glyph: '🪢', kind: 'sling', damage: 6.5, knock: 9.4, pierce: 0.5, reach: 280, cooldown: 0.45 },
   { id: 'axe', glyph: '🪓', kind: 'swing', damage: 5.2, knock: 6, pierce: 6.5, reach: 68, cooldown: 0.42 },
   { id: 'sword', glyph: '🗡️', kind: 'swing', damage: 8.2, knock: 1.2, pierce: 9, reach: 72, cooldown: 0.28 },
@@ -54,7 +54,7 @@ const zones = [
 ];
 
 const state = { mode:'menu',glyphWeapon:'club',t:0,last:0,keys:new Set(),mouse:{x:0,y:0,vx:0,vy:0,lastT:0,down:false,held:0},camera:{x:MAP_CENTER.x,y:MAP_CENTER.y},player:null,projectiles:[],pickups:[],enemies:[],terrain:[],waves:{},mount:'foot',debug:[],diamonds:0,ammo:{arrows:0,bolts:0,jars:0,pellets:0,cannonballs:0},elements:{fire:0,ice:0,poison:0},activeElement:null,meta:{},pendingReward:null,deferredRewards:[],shopOpen:false,offerNpc:null,currentZone:null,run:1,hazards:[],deployables:[],feedback:[],hudFlash:{hp:0,diamonds:0,lastHp:null,lastDiamonds:null},fungusRespawns:{},nextEnemyId:1,finance:{savings:0,debt:0,trust:0,trustAvailable:0,amounts:{savings:5,loan:10,trust:5}},casinoWagers:{coin:1,dice:1,card:1},shopPurchases:{},damageView:false,damagePreview:null};
-const BUILD_VERSION = 'v0.26.0 build 2026-06-20 14:28 UTC';
+const BUILD_VERSION = 'v0.26.1 build 2026-06-20 15:02 UTC';
 const wrap12=h=>(h%12+12)%12; const inArc=(h,[s,e])=>{h=wrap12(h);s=wrap12(s);e=wrap12(e);if(s===e)return true;return s<=e?(h>=s&&h<e):(h>=s||h<e)}; const toClockHour=t=>wrap12((t*6/Math.PI)+3);
 const DEPLOYABLE_TOOLS={caltrop:{id:'caltrop',glyph:'✣',kind:'deployable',cooldown:.2},decoy:{id:'decoy',glyph:'🛡️',kind:'deployable',cooldown:.2}};
 const weaponDef=()=>weapons.find(w=>w.id===state.player.weapon)||DEPLOYABLE_TOOLS[state.player.weapon];
@@ -917,14 +917,14 @@ function doSwingDamage(){const p=state.player,w=effectiveWeapon(weaponDef());if(
  for(const t of state.terrain){if(t.swingHit===p.swingSerial)continue;const hit=swingHitShape(w,t,a,phase);if(hit&&hit.shape>=.16){t.swingHit=p.swingSerial;const tipSpeed=Math.hypot(p.vx,p.vy)+FULL_SWING_TIP_SPEED*w.swingSpeedMult*hit.shape;applyHit(t,w,speedImpactScale(tipSpeed));}} }
 
 
-function previewDamageForWeapon(w,shape){const tipSpeed=FULL_SWING_TIP_SPEED*w.swingSpeedMult*shape;return w.damage*speedImpactScale(tipSpeed)*w.damageMult;}
+function previewDamageForWeapon(w,shape,moveSpeed=0){const tipSpeed=moveSpeed+FULL_SWING_TIP_SPEED*w.swingSpeedMult*shape;return w.damage*speedImpactScale(tipSpeed)*w.damageMult;}
 function heatColor(value,min,max,alpha=.34){const t=max>min?Math.max(0,Math.min(1,(value-min)/(max-min))):1,r=Math.round(40+215*t),g=Math.round(90*(1-Math.abs(t-.5)*2)),b=Math.round(255*(1-t));return `rgba(${r},${g},${b},${alpha})`;}
 function labelHeat(text,x,y){const p=projectWorld(x,y);ctx.save();ctx.font='12px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.lineWidth=3;ctx.strokeStyle='rgba(255,255,255,.86)';ctx.fillStyle='#111';ctx.strokeText(text,p.x,p.y);ctx.fillText(text,p.x,p.y);ctx.restore();}
 function recordMeleeDamagePreview(w,a){
-  if(!state.damageView)return;const p=state.player,samples=[],maxPhase=1;
-  if(w.id==='club')for(let ri=0;ri<6;ri++){const r=(ri+.5)/6*w.reach,leverage=.35+.65*r/Math.max(1,w.reach),shape=maxPhase*leverage,dmg=previewDamageForWeapon(w,shape);for(let ai=-6;ai<=6;ai++){const aa=a+ai*(0.92/6);samples.push({x:p.x+Math.cos(aa)*r,y:p.y+Math.sin(aa)*r,value:dmg,r1:ri/6*w.reach,r2:(ri+1)/6*w.reach,a1:a+(ai-.5)*(0.92/6),a2:a+(ai+.5)*(0.92/6)});}}
-  else if(w.id==='axe'){const hx=p.x+Math.cos(a)*w.reach,hy=p.y+Math.sin(a)*w.reach;for(let i=0;i<6;i++){const d=(i+.5)/6*34,shape=maxPhase*(1-d/42),dmg=previewDamageForWeapon(w,shape);samples.push({x:hx,y:hy,value:dmg,ring:i,radius:(i+1)/6*34});}}
-  else if(w.id==='sword')for(let i=0;i<7;i++){const along=8+(i+.5)/7*(w.reach+8),pointBias=.25+.75*Math.min(1,along/Math.max(1,w.reach)),dmg=previewDamageForWeapon(w,maxPhase*pointBias);samples.push({x:p.x+Math.cos(a)*along,y:p.y+Math.sin(a)*along,value:dmg,along});}
+  if(!state.damageView)return;const p=state.player,samples=[],maxPhase=1,moveSpeed=Math.hypot(p.vx||0,p.vy||0);
+  if(w.id==='club')for(let ri=0;ri<6;ri++){const r=(ri+.5)/6*w.reach,leverage=.35+.65*r/Math.max(1,w.reach);for(let ai=-6;ai<=6;ai++){const aa=a+ai*(0.92/6),edge=Math.min(1,Math.abs(aa-a)/0.92),swingPhase=.5+.5*(1-edge),shape=swingPhase*leverage,dmg=previewDamageForWeapon(w,shape,moveSpeed);samples.push({x:p.x+Math.cos(aa)*r,y:p.y+Math.sin(aa)*r,value:dmg,r1:ri/6*w.reach,r2:(ri+1)/6*w.reach,a1:a+(ai-.5)*(0.92/6),a2:a+(ai+.5)*(0.92/6)});}}
+  else if(w.id==='axe'){const hx=p.x+Math.cos(a)*w.reach,hy=p.y+Math.sin(a)*w.reach;for(let i=0;i<6;i++){const d=(i+.5)/6*34,shape=maxPhase*(1-d/42),dmg=previewDamageForWeapon(w,shape,moveSpeed);samples.push({x:hx,y:hy,value:dmg,ring:i,radius:(i+1)/6*34});}}
+  else if(w.id==='sword')for(let i=0;i<7;i++){const along=8+(i+.5)/7*(w.reach+8),pointBias=.25+.75*Math.min(1,along/Math.max(1,w.reach)),dmg=previewDamageForWeapon(w,maxPhase*pointBias,moveSpeed);samples.push({x:p.x+Math.cos(a)*along,y:p.y+Math.sin(a)*along,value:dmg,along});}
   const vals=samples.map(s=>s.value),min=Math.min(...vals),max=Math.max(...vals);state.damagePreview={kind:'melee',weapon:w.id,x:p.x,y:p.y,a,reach:w.reach,samples,min,max};
 }
 function recordProjectileDamagePreview(pr){
@@ -1107,8 +1107,9 @@ function drawHeldWeapon(w, aim){
   const hold=chargeLevel(state.mouse.held,w.id),reachScale=MELEE_WEAPONS.has(w.id)?1+metaFor(w.id).reach*.1:1,swingViz=swingVisualOffset(w),wob=(w.id==='bow'&&state.mouse.down)?Math.sin(state.t*20)*Math.max(0,state.mouse.held-0.7)*0.12:0;
   if(w.id==='club'){
     ctx.rotate(aim+swingViz);
-    ctx.strokeStyle='#6f3f1f';ctx.lineWidth=Math.max(5,7*reachScale);ctx.lineCap='round';ctx.lineJoin='round';
-    ctx.beginPath();ctx.moveTo(7,0);ctx.lineTo(w.reach*PX_PER_WORLD,0);ctx.stroke();
+    const clubWidth=Math.max(5,7*reachScale),clubTip=Math.max(7,w.reach*PX_PER_WORLD-clubWidth*.5);
+    ctx.strokeStyle='#6f3f1f';ctx.lineWidth=clubWidth;ctx.lineCap='round';ctx.lineJoin='round';
+    ctx.beginPath();ctx.moveTo(7,0);ctx.lineTo(clubTip,0);ctx.stroke();
     return;
   }
   const gw=MELEE_WEAPONS.has(w.id)?Math.max(21,w.reach*PX_PER_WORLD/.86):21*reachScale,gh=16.5,pts=weaponGlyphPoints[w.id]||{},hp=cellPoint(pts.handleCell,gw,gh),tp=cellPoint(pts.tipCell,gw,gh),glyphAngle=Math.atan2(tp.y-hp.y,tp.x-hp.x);
@@ -1230,7 +1231,7 @@ function render(){updateHudFlashes();ctx.clearRect(0,0,innerWidth,innerHeight); 
  if(w.id==='bow')modeBits.push(`Arrows: ${['regular','element'].map(m=>`<button type="button" data-arrow="${m}">${m}${state.arrowMode===m?'*':''}</button>`).join(' ')}`);
  if(w.id==='cannon')modeBits.push(`Cannon: ${['ball','grape'].map(m=>`<button type="button" data-cannon="${m}">${m}${state.cannonMode===m?'*':''}</button>`).join(' ')}`);
  if(state.player.unlocked.has('shield')&&!['bow','ballista','cannon'].includes(w.id))modeBits.push('<button type="button" data-shield="1">shield (Q)</button>');
- if(state.damageView)modeBits.push('Damage view: ON (D toggles; heat map persists until next attack)');
+ if(state.damageView)modeBits.push('Damage view: ON (E toggles; heat map persists until next attack)');
  const shopHtml=showReward&&state.shopOpen?`<div class="shop-modal"><strong>Upgrades — choose one</strong>${rewardOptionsHtml(state.pendingReward)}<div class="shop-section"><strong>Consumables</strong><br>${shopConsumables(state.pendingReward.zone)}</div><button type="button" data-close-shop="1">${state.pendingReward.purchased?'Done':'Close'}</button></div>`:'';
  const rewardControls=state.pendingReward?(state.pendingReward.purchased?'<button class="next-wave" type="button" data-start-wave="1">▶ Start next wave</button>':(!state.shopOpen&&showReward?'<button class="next-wave" type="button" data-open-shop="1">◆ Open shop</button>':'')):'';
  ui.innerHTML=`<strong>${BUILD_VERSION}</strong><br><span class="hud-value ${state.hudFlash.hp>state.t?'hud-flash-health':''}">♥ ${state.player.hp.toFixed(1)}/${state.player.maxHp}</span> · <span class="hud-value ${state.hudFlash.diamonds>state.t?'hud-flash-diamonds':''}">♦ ${state.diamonds}</span><br>Zone: ${z?z.name:'Boundary'} · R ${rad} · ${clock}:00<br>Weapon: ${w.id} · Mount: ${state.mount}<br>Ammo: ➵ ${state.ammo.arrows} · ➳ ${state.ammo.bolts} · 🏺 ${state.ammo.jars} · ● ${state.ammo.pellets} · ⚫ ${state.ammo.cannonballs}${modeBits.length?`<br>${modeBits.join('<br>')}`:''}${rewardControls}<br><button type="button" data-reset-world="1">Reset World</button>${shopHtml}`;
@@ -1286,7 +1287,7 @@ addEventListener('pointerleave',hideButtonTooltip);
 ui.addEventListener('focusin',e=>{const button=e.target.closest('[data-tip]');if(button){const r=button.getBoundingClientRect();showButtonTooltip(button,r.left+r.width/2,r.top);}});
 ui.addEventListener('focusout',hideButtonTooltip);
 addEventListener('resize',()=>{canvas.width=innerWidth*devicePixelRatio;canvas.height=innerHeight*devicePixelRatio;ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);});
-addEventListener('keydown',e=>{const k=e.key.toLowerCase();if(k==='escape'){if(state.shopOpen){state.shopOpen=false;return;}setMode('menu');return;}if(state.mode!=='game'||state.shopOpen)return;state.keys.add(k);if(k===' ')trig();if(k==='r')resetWorld();if(k==='d'&&!e.repeat){state.damageView=!state.damageView;if(!state.damageView)state.damagePreview=null;dbg(`[DAMAGE VIEW] ${state.damageView?'on':'off'}`);}if(k==='m')state.mount=(state.mount==='horse'?'foot':'horse');if(k==='q'&&state.player.unlocked.has('shield')&&!['bow','ballista','cannon'].includes(state.player.weapon))state.player.shield=!state.player.shield;if(/[1-7]/.test(e.key)){const w=weapons[Number(e.key)-1];if(w)selectWeapon(w.id);}if(e.key==='8')selectWeapon('caltrop');if(e.key==='9')selectWeapon('decoy');});
+addEventListener('keydown',e=>{const k=e.key.toLowerCase();if(k==='escape'){if(state.shopOpen){state.shopOpen=false;return;}setMode('menu');return;}if(state.mode!=='game'||state.shopOpen)return;state.keys.add(k);if(k===' ')trig();if(k==='r')resetWorld();if(k==='e'&&!e.repeat){state.damageView=!state.damageView;if(!state.damageView)state.damagePreview=null;dbg(`[DAMAGE VIEW] ${state.damageView?'on':'off'}`);}if(k==='m')state.mount=(state.mount==='horse'?'foot':'horse');if(k==='q'&&state.player.unlocked.has('shield')&&!['bow','ballista','cannon'].includes(state.player.weapon))state.player.shield=!state.player.shield;if(/[1-7]/.test(e.key)){const w=weapons[Number(e.key)-1];if(w)selectWeapon(w.id);}if(e.key==='8')selectWeapon('caltrop');if(e.key==='9')selectWeapon('decoy');});
 addEventListener('keyup',e=>{if(state.mode!=='game')return; state.keys.delete(e.key.toLowerCase()); if(e.key===' ')rel();});
 canvas.addEventListener('mousemove',e=>{const now=performance.now()/1000,dt=Math.max(1/240,now-(state.mouse.lastT||now));state.mouse.vx=(e.clientX-state.mouse.x)/dt;state.mouse.vy=(e.clientY-state.mouse.y)/dt;state.mouse.x=e.clientX;state.mouse.y=e.clientY;state.mouse.lastT=now;});
 canvas.addEventListener('mousedown',()=>{if(state.mode==='game')trig();}); addEventListener('mouseup',()=>{if(state.mode==='game')rel();});
