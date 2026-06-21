@@ -54,7 +54,7 @@ const zones = [
 ];
 
 const state = { mode:'menu',glyphWeapon:'club',t:0,last:0,keys:new Set(),mouse:{x:0,y:0,vx:0,vy:0,lastT:0,down:false,held:0},camera:{x:MAP_CENTER.x,y:MAP_CENTER.y},player:null,projectiles:[],pickups:[],enemies:[],terrain:[],waves:{},mount:'foot',debug:[],diamonds:0,ammo:{arrows:0,bolts:0,jars:0,pellets:0,cannonballs:0},elements:{fire:0,ice:0,poison:0},activeElement:null,meta:{},pendingReward:null,deferredRewards:[],shopOpen:false,offerNpc:null,currentZone:null,run:1,hazards:[],deployables:[],feedback:[],hudFlash:{hp:0,diamonds:0,lastHp:null,lastDiamonds:null},fungusRespawns:{},nextEnemyId:1,finance:{savings:0,debt:0,trust:0,trustAvailable:0,amounts:{savings:5,loan:10,trust:5}},casinoWagers:{coin:1,dice:1,card:1},shopPurchases:{},damageView:false,damagePreview:null};
-const BUILD_VERSION = 'v0.26.5 build 2026-06-20 16:35 UTC';
+const BUILD_VERSION = 'v0.27.0 build 2026-06-20 17:12 UTC';
 const wrap12=h=>(h%12+12)%12; const inArc=(h,[s,e])=>{h=wrap12(h);s=wrap12(s);e=wrap12(e);if(s===e)return true;return s<=e?(h>=s&&h<e):(h>=s||h<e)}; const toClockHour=t=>wrap12((t*6/Math.PI)+3);
 const DEPLOYABLE_TOOLS={caltrop:{id:'caltrop',glyph:'✣',kind:'deployable',cooldown:.2},decoy:{id:'decoy',glyph:'🛡️',kind:'deployable',cooldown:.2}};
 const weaponDef=()=>weapons.find(w=>w.id===state.player.weapon)||DEPLOYABLE_TOOLS[state.player.weapon];
@@ -754,7 +754,7 @@ function update(dt){const p=state.player;state.feedback=state.feedback.filter(f=
   p.attackCooldown=Math.max(0,(p.attackCooldown||0)-dt); if(state.mouse.down&&p.attackCooldown<=0)state.mouse.held+=dt; p.cannonCooldown=Math.max(0,(p.cannonCooldown||0)-dt); if(['bow','ballista','cannon'].includes(p.weapon))p.shield=false; if(['ballista','cannon'].includes(p.weapon))state.mount='foot';
   const rewardBlocksZone=zone&&rewardPendingForZone(zone.id);
   if(zone&&!rewardBlocksZone&&!state.waves[zone.id].spawned&&!state.waves[zone.id].cleared&&!state.enemies.some(e=>e.zone===zone.id&&e.hp>0))spawnWave(zone);
-  if(state.mouse.down&&state.mouse.queuedAttack&&p.attackCooldown<=0&&!isChargeWeapon(weaponDef()))beginMeleeSwing(); if(p.swing>0){p.swing-=dt*3*effectiveWeapon(weaponDef()).swingSpeedMult;doSwingDamage();} passiveMeleeContact(dt);
+  if(state.mouse.down&&state.mouse.queuedAttack&&p.attackCooldown<=0&&!isChargeWeapon(weaponDef()))beginMeleeSwing(); if(p.swing>0){const prevSwing=p.swing;p.swing=Math.max(0,p.swing-dt*4*effectiveWeapon(weaponDef()).swingSpeedMult);doSwingDamage(prevSwing);} passiveMeleeContact(dt);
   for(const pr of state.projectiles){
     projectileCombatStats(pr);
     if(pr.spore){const tx=p.x-pr.x,ty=p.y-pr.y,d=Math.hypot(tx,ty)||1,speed=Math.hypot(pr.vx,pr.vy)||1,turn=pr.spiral*dt,ux=tx/d,uy=ty/d,sideX=-uy,sideY=ux;pr.vx+=(ux*.32+sideX*.68)*speed*turn;pr.vy+=(uy*.32+sideY*.68)*speed*turn;}
@@ -895,10 +895,15 @@ function meleeProjectiles(sx,sy,radius,w,damage,knock,angle,serial){
 }
 function angleDelta(a,b){return Math.atan2(Math.sin(a-b),Math.cos(a-b));}
 function shaftHit(target,p,a,reach,width){const dx=target.x-p.x,dy=target.y-p.y,along=dx*Math.cos(a)+dy*Math.sin(a),perp=Math.abs(dx*-Math.sin(a)+dy*Math.cos(a));return along>8&&along<reach&&perp<width?{along,perp}:null;}
-function swingHitShape(w,target,a,phase){const p=state.player,dx=target.x-p.x,dy=target.y-p.y,dist=Math.hypot(dx,dy)||1,bearing=Math.atan2(dy,dx),delta=Math.abs(angleDelta(bearing,a));
-  if(w.id==='club'){const wedge=0.92,inside=dist<=w.reach&&delta<wedge;if(!inside)return null;const leverage=.35+.65*Math.min(1,dist/Math.max(1,w.reach));return{angle:bearing,shape:Math.max(.18,phase)*leverage};}
-  if(w.id==='axe'){const hx=p.x+Math.cos(a)*w.reach,hy=p.y+Math.sin(a)*w.reach,d=Math.hypot(target.x-hx,target.y-hy);return d<38?{angle:a,shape:Math.max(.25,phase)*Math.max(.42,1-d/52)}:null;}
-  if(w.id==='sword'){const thrustReach=w.reach*(.48+.52*phase),hit=shaftHit(target,p,a,thrustReach+16,10);if(!hit)return null;const mid=thrustReach*.58,midBias=.25+.75*(1-Math.min(1,Math.abs(hit.along-mid)/Math.max(1,thrustReach*.58)));return{angle:a,shape:Math.max(.12,phase)*midBias};}
+function targetHitRadius(target){
+  if(target.maxHp!==undefined){const base=target.archetype==='fly'?8:target.archetype==='charger'?17:target.archetype==='tank'?24:(target.boss?32:14);return base*(target.visualScale||1);}
+  return Math.max(10,(target.size||18)*0.45);
+}
+function distToSegment(px,py,ax,ay,bx,by){const vx=bx-ax,vy=by-ay,wx=px-ax,wy=py-ay,len2=vx*vx+vy*vy||1,t=Math.max(0,Math.min(1,(wx*vx+wy*vy)/len2)),x=ax+vx*t,y=ay+vy*t;return Math.hypot(px-x,py-y);}
+function swingHitShape(w,target,a,phase,prevA=a){const p=state.player,dx=target.x-p.x,dy=target.y-p.y,dist=Math.hypot(dx,dy)||1,bearing=Math.atan2(dy,dx),delta=Math.abs(angleDelta(bearing,a)),targetR=targetHitRadius(target);
+  if(w.id==='club'){const wedge=0.92,inside=dist<=w.reach+targetR&&delta<wedge;if(!inside)return null;const leverage=.35+.65*Math.min(1,dist/Math.max(1,w.reach));return{angle:bearing,shape:Math.max(.18,phase)*leverage};}
+  if(w.id==='axe'){const ahx=p.x+Math.cos(prevA)*w.reach,ahy=p.y+Math.sin(prevA)*w.reach,bhx=p.x+Math.cos(a)*w.reach,bhy=p.y+Math.sin(a)*w.reach,headR=18,d=distToSegment(target.x,target.y,ahx,ahy,bhx,bhy),limit=headR+targetR;if(d<limit)return{angle:a,shape:Math.max(.25,phase)*Math.max(.42,1-d/Math.max(1,limit*1.15))};return null;}
+  if(w.id==='sword'){const thrustReach=w.reach*(.48+.52*phase),hit=shaftHit(target,p,a,thrustReach+16,10+targetR*.45);if(!hit)return null;const mid=thrustReach*.58,midBias=.25+.75*(1-Math.min(1,Math.abs(hit.along-mid)/Math.max(1,thrustReach*.58)));return{angle:a,shape:Math.max(.12,phase)*midBias};}
   return null;
 }
 function heldContactShape(w,target,a){const p=state.player;if(w.id==='axe'){const hx=p.x+Math.cos(a)*w.reach,hy=p.y+Math.sin(a)*w.reach;return Math.hypot(target.x-hx,target.y-hy)<28?{angle:a,shape:1}:null;}const width=w.id==='sword'?9:17,reach=w.reach;const hit=shaftHit(target,p,a,reach,width);if(!hit)return null;const swordMid=.55+.45*(1-Math.min(1,Math.abs(hit.along-reach*.58)/Math.max(1,reach*.58)));return{angle:a,shape:w.id==='sword'?swordMid:(.45+.55*hit.along/reach)};}
@@ -911,11 +916,12 @@ function swingProgressSpeed(progress){
   if(progress<.7)return 1-((progress-.5)/.2)*.1;
   return .9-((progress-.7)/.3)*.4;
 }
-function swingVisualOffset(w){if(w.id!=='club'&&w.id!=='axe')return 0;const progress=1-Math.max(0,Math.min(1,state.player.swing));return (0.5-progress)*1.1;}
+function swingVisualOffsetFor(w,swing){if(w.id!=='club'&&w.id!=='axe')return 0;const progress=1-Math.max(0,Math.min(1,swing));return (0.5-progress)*1.1;}
+function swingVisualOffset(w){return swingVisualOffsetFor(w,state.player.swing);}
 function swordThrustOffset(w){if(w.id!=='sword')return 0;const progress=1-Math.max(0,Math.min(1,state.player.swing));return Math.sin(progress*Math.PI)*18;}
-function doSwingDamage(){const p=state.player,w=effectiveWeapon(weaponDef());if(w.kind!=='swing')return; const baseAim=Math.atan2(state.mouse.y-innerHeight/2,state.mouse.x-innerWidth/2),a=baseAim+swingVisualOffset(w),swingProgress=1-Math.max(0,Math.min(1,p.swing)),phase=swingProgressSpeed(swingProgress);
- for(const e of state.enemies){if(e.swingHit===p.swingSerial)continue;const hit=swingHitShape(w,e,a,phase);if(!hit||hit.shape<.16)continue;e.swingHit=p.swingSerial;const tipSpeed=Math.hypot(p.vx,p.vy)+FULL_SWING_TIP_SPEED*w.swingSpeedMult*hit.shape,impactScale=speedImpactScale(tipSpeed),knockScale=speedKnockScale(tipSpeed); const dmg=w.damage*impactScale*w.damageMult; e.hp-=dmg;showEnemyDamage(e,dmg); e.hitT=state.t;e.lunge=5; if(p.swingElement)addStatus(e,p.swingElement,1); const kb=w.knock*knockScale*18; knockEnemy(e,hit.angle,kb); dbg(`[SWING:${w.id}] -> enemy ${e.glyph} dmg=${dmg.toFixed(2)} kb=${kb.toFixed(1)} phase=${phase.toFixed(2)} shape=${hit.shape.toFixed(2)} hp=${e.hp.toFixed(2)} ang=${a.toFixed(2)}`);}
- for(const t of state.terrain){if(t.swingHit===p.swingSerial)continue;const hit=swingHitShape(w,t,a,phase);if(hit&&hit.shape>=.16){t.swingHit=p.swingSerial;const tipSpeed=Math.hypot(p.vx,p.vy)+FULL_SWING_TIP_SPEED*w.swingSpeedMult*hit.shape;applyHit(t,w,speedImpactScale(tipSpeed));}} }
+function doSwingDamage(prevSwing=state.player.swing){const p=state.player,w=effectiveWeapon(weaponDef());if(w.kind!=='swing')return; const baseAim=Math.atan2(state.mouse.y-innerHeight/2,state.mouse.x-innerWidth/2),a=baseAim+swingVisualOffset(w),prevA=baseAim+swingVisualOffsetFor(w,prevSwing),swingProgress=1-Math.max(0,Math.min(1,p.swing)),phase=swingProgressSpeed(swingProgress);
+ for(const e of state.enemies){if(e.swingHit===p.swingSerial)continue;const hit=swingHitShape(w,e,a,phase,prevA);if(!hit||hit.shape<.16)continue;e.swingHit=p.swingSerial;const tipSpeed=Math.hypot(p.vx,p.vy)+FULL_SWING_TIP_SPEED*w.swingSpeedMult*hit.shape,impactScale=speedImpactScale(tipSpeed),knockScale=speedKnockScale(tipSpeed); const dmg=w.damage*impactScale*w.damageMult; e.hp-=dmg;showEnemyDamage(e,dmg); e.hitT=state.t;e.lunge=5; if(p.swingElement)addStatus(e,p.swingElement,1); const kb=w.knock*knockScale*18; knockEnemy(e,hit.angle,kb); dbg(`[SWING:${w.id}] -> enemy ${e.glyph} dmg=${dmg.toFixed(2)} kb=${kb.toFixed(1)} phase=${phase.toFixed(2)} shape=${hit.shape.toFixed(2)} hp=${e.hp.toFixed(2)} ang=${a.toFixed(2)}`);}
+ for(const t of state.terrain){if(t.swingHit===p.swingSerial)continue;const hit=swingHitShape(w,t,a,phase,prevA);if(hit&&hit.shape>=.16){t.swingHit=p.swingSerial;const tipSpeed=Math.hypot(p.vx,p.vy)+FULL_SWING_TIP_SPEED*w.swingSpeedMult*hit.shape;applyHit(t,w,speedImpactScale(tipSpeed));}} }
 
 
 function previewDamageForWeapon(w,shape,moveSpeed=0){const tipSpeed=moveSpeed+FULL_SWING_TIP_SPEED*w.swingSpeedMult*shape;return w.damage*speedImpactScale(tipSpeed)*w.damageMult;}
@@ -945,6 +951,7 @@ function drawDamagePreview(){
     ctx.lineWidth=14;for(let i=0;i<pr.points.length-1;i++){const a=pr.points[i],b=pr.points[i+1],pa=projectWorld(a.x,a.y),pb=projectWorld(b.x,b.y);ctx.strokeStyle=heatColor(a.value,pr.min,pr.max,.34);ctx.beginPath();ctx.moveTo(pa.x,pa.y);ctx.lineTo(pb.x,pb.y);ctx.stroke();}
     labelHeat(`max ${pr.max.toFixed(1)}`,pr.points[0].x,pr.points[0].y);const last=pr.points.at(-1);labelHeat(`min ${pr.min.toFixed(1)}`,last.x,last.y);
   }
+  if(pr.kind==='melee'){ctx.save();ctx.strokeStyle='rgba(255,255,255,.48)';ctx.lineWidth=1;for(const e of state.enemies){const p=projectWorld(e.x,e.y);ctx.beginPath();ctx.arc(p.x,p.y,targetHitRadius(e)*PX_PER_WORLD,0,Math.PI*2);ctx.stroke();}ctx.restore();}
   ctx.restore();
 }
 
