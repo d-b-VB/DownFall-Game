@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DownFall Prototype</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin:0; font-family: Inter, system-ui, sans-serif; background:#111; color:#eee; }
+    #ui { position:fixed; top:8px; left:8px; max-width:min(760px,calc(100vw - 36px)); background:#000b; padding:8px 10px; border-radius:8px; z-index:10; font-size:14px; }
+    .hud-value { display:inline-block; padding:1px 4px; border-radius:5px; transition:background-color .12s, color .12s, box-shadow .12s; }
+    .hud-flash-health { color:#fff; background:#d83b4b; box-shadow:0 0 12px #ff5368; }
+    .hud-flash-diamonds { color:#102530; background:#68d8ff; box-shadow:0 0 12px #68d8ff; }
+    .shop-section { margin-top:8px; padding-top:7px; border-top:1px solid #ffffff33; }
+    .shop-section strong { color:#ffe28a; }
+    .upgrade-group { display:inline-flex; align-items:center; gap:4px; margin:6px 8px 0 0; padding-left:8px; border-left:2px solid #ffffff24; }
+    .upgrade-group em { color:#b9d9c2; font-style:normal; text-transform:capitalize; }
+    .shop-modal { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); width:min(560px,calc(100vw - 40px)); max-height:80vh; overflow:auto; padding:16px; border:1px solid #ffffff44; border-radius:14px; background:#151a18f5; box-shadow:0 20px 80px #000; z-index:40; }
+    .symbol-button { position:relative; min-width:43px; min-height:43px; margin:2px; font-size:24px; border-radius:9px; }
+    .symbol-button small { display:block; font:10px system-ui,sans-serif; color:#ffe28a; }
+    #button-tooltip { position:fixed; display:none; width:max-content; max-width:min(300px,calc(100vw - 24px)); padding:8px 10px; border:1px solid #ffffff35; border-radius:7px; background:#050706f5; color:#fff; font:12px/1.35 system-ui,sans-serif; pointer-events:none; z-index:80; box-shadow:0 4px 18px #000; }
+    .next-wave { display:block; margin-top:8px; background:#274f31; color:#fff; border:1px solid #70b77f; border-radius:8px; padding:6px 10px; }
+    .money-table { margin-top:5px; border-collapse:collapse; font-size:12px; }
+    .money-table th, .money-table td { border:1px solid #ffffff33; padding:4px 6px; text-align:center; }
+    .money-table th { color:#ffe28a; background:#ffffff10; }
+    .money-table button { margin:1px 2px; }
+    #help { position:fixed; top:8px; right:8px; background:#0008; padding:8px 10px; border-radius:8px; font-size:12px; }
+    #menu { position:fixed; inset:0; display:grid; place-items:center; background:#111d; z-index:20; }
+    #loading { position:fixed; inset:0; z-index:30; display:grid; place-items:center; background:#111; transition:opacity .2s; }
+    #loading.done { opacity:0; pointer-events:none; }
+    .loading-card { width:min(360px,calc(100vw - 48px)); background:#1e2522; border:1px solid #ffffff33; border-radius:14px; padding:22px 26px; text-align:center; box-shadow:0 18px 70px #000a; }
+    .loading-track { height:12px; margin-top:14px; overflow:hidden; border-radius:999px; background:#0b0e0d; border:1px solid #ffffff22; }
+    #loading-bar { height:100%; width:0; background:linear-gradient(90deg,#4f9f63,#9bd36e); transition:width .12s; }
+    #loading-status { margin-top:8px; color:#cbd5cf; font-size:13px; }
+    #menu.hidden { display:none; }
+    .menu-card { background:#1e2522; border:1px solid #ffffff33; border-radius:14px; padding:22px 26px; text-align:center; box-shadow:0 18px 70px #000a; }
+    .menu-card h1 { margin:0 0 6px; }
+    .menu-card p { margin:0 0 14px; color:#cbd5cf; }
+    button { margin-top:6px; margin-right:4px; }
+    canvas { display:block; width:100vw; height:100vh; }
+  </style>
+</head>
+<body>
+  <div id="loading"><div class="loading-card"><strong>Preparing DownFall</strong><div class="loading-track"><div id="loading-bar"></div></div><div id="loading-status">Loading Noto Emoji…</div></div></div>
+  <div id="menu"><div class="menu-card"><h1>DownFall</h1><p>Choose a mode.</p><button type="button" data-mode="game">Play Game</button><button type="button" data-mode="glyph">Glyph Test</button></div></div>
+  <div id="ui"></div>
+  <div id="button-tooltip" role="tooltip"></div>
+  <div id="help">WASD move · Mouse aim · Click/hold attack · Space alternate attack · 1-7 weapons · 8 caltrop · 9 decoy · M toggle horse · rewards: click · R reset world</div>
+  <canvas id="game"></canvas>
+  <script src="emoji-renderer.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>
