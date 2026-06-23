@@ -30,7 +30,7 @@ const glyphCellDistance=(a,b)=>{const pa=glyphCellCoord(a),pb=glyphCellCoord(b);
 const axeGlyph=weaponGlyphPoints.axe,AXE_HEAD_DEPTH_RATIO=glyphCellDistance(axeGlyph.tipCell,axeGlyph.headRearCell)/glyphCellDistance(axeGlyph.tipCell,axeGlyph.handleCell);
 const axeHeadDepth=w=>w.reach*AXE_HEAD_DEPTH_RATIO;
 const glyphCols = Array.from({length:12},(_,i)=>String(i+1));
-const glyphTests = [...weapons.map(w=>w.id),'stoneLion','fire','poison','ice','arrow1','arrow2','arrow3','arrow4','arrow5'];
+const glyphTests = [...weapons.map(w=>w.id),'fire','poison','ice','arrow1','arrow2','arrow3','arrow4','arrow5'];
 
 const zones = [
   { id: 'orchard', name: 'Club Orchard', palette: ['#245e3a','#2e7548','#3f8d59'], enemy: '🐛', unlock: 'club', ring: ring(0,1), arc:[0,12], deco:'orchard' },
@@ -58,7 +58,7 @@ const zones = [
 ];
 
 const state = { mode:'menu',glyphWeapon:'club',t:0,last:0,keys:new Set(),mouse:{x:0,y:0,vx:0,vy:0,lastT:0,down:false,held:0},camera:{x:MAP_CENTER.x,y:MAP_CENTER.y},player:null,projectiles:[],pickups:[],enemies:[],terrain:[],waves:{},mount:'foot',debug:[],diamonds:0,ammo:{arrows:0,bolts:0,jars:0,pellets:0,cannonballs:0},elements:{fire:0,ice:0,poison:0},activeElement:null,meta:{},pendingReward:null,deferredRewards:[],shopOpen:false,offerNpc:null,currentZone:null,run:1,hazards:[],deployables:[],feedback:[],hudFlash:{hp:0,diamonds:0,lastHp:null,lastDiamonds:null},fungusRespawns:{},nextEnemyId:1,finance:{savings:0,debt:0,trust:0,trustAvailable:0,amounts:{savings:5,loan:10,trust:5}},casinoWagers:{coin:1,dice:1,card:1},shopPurchases:{},damageView:false,damagePreview:null};
-const BUILD_VERSION = 'v0.27.7 build 2026-06-23 01:07 UTC';
+const BUILD_VERSION = 'v0.27.9 build 2026-06-23 01:44 UTC';
 const wrap12=h=>(h%12+12)%12; const inArc=(h,[s,e])=>{h=wrap12(h);s=wrap12(s);e=wrap12(e);if(s===e)return true;return s<=e?(h>=s&&h<e):(h>=s||h<e)}; const toClockHour=t=>wrap12((t*6/Math.PI)+3);
 const DEPLOYABLE_TOOLS={caltrop:{id:'caltrop',glyph:'✣',kind:'deployable',cooldown:.2},decoy:{id:'decoy',glyph:'🛡️',kind:'deployable',cooldown:.2}};
 const weaponDef=()=>weapons.find(w=>w.id===state.player.weapon)||DEPLOYABLE_TOOLS[state.player.weapon];
@@ -112,7 +112,7 @@ const ZONE_NPCS = {bank:'🏦',tanner:'🧵',inn:'🍲',casino:'🎲',farrier:'�
 const NOTO_GAME_GLYPHS = [
   '🙂','🐎','🛡️','🪢','🪓','🗡️','🏹','🔥','❄️','☠️','🏺','🧥','🧪','✣',
   ...Object.values(ZONE_NPCS),...zones.map(zone=>zone.enemy),
-  '🐛','🐿️','🪰','🐸','🐢','🦀','𓆦','🕷️','🦌','🐝','🐺','🐏','🐇',
+  '🐛','🐿️','🪰','🐸','🐢','🦀','𓆦','🕷️','🦌','🐝','🐺','🐏','🐇','🦁',
   '🐦‍⬛','🦃','🦅','🐀','🪳','💃','🕺','🤢','🐻','🐂','🦝','🥷','🫏',
   '🦊','🦉','🐧','🐻‍❄️','🫎','🍄','🦟','🦂','🐍','🪲','🐜','🦎',
   '🐐','🐉','🐌','🦞','🦄','🐦‍🔥','🦣','☁️','🛶','🧔‍♂️','🧔','🦇','☃️','🧌','🐊','👻','🧟','🧟‍♂️','🧟‍♀️','💀','🦴','🧛‍♂️','😈','👿','🔔','🗿','👹',
@@ -286,7 +286,7 @@ function enemyVariant(zone,wave,i){
   if(zone.id==='pasture'&&wave>1&&i%3===0&&kind!=='ram')set('🐇','rabbit',.45,.75);
   if(zone.id==='pasture'&&i%6===5)set('🪰','horseFly',.62,.58,'fly',.72,1.55);
   if(zone.id==='bank'){
-    set('stoneLion','statueLion',3,2.5,'statueLion',.45,1.35);
+    set('🦁','statueLion',3,2.5,'statueLion',.45,1.35);
     if(wave>=2&&i%5===0)set('🐻','bear',3.4,2.3,'tank',.5);
     else if(wave>=2&&i%5===1)set('🐂','bull',1.55,2,'charger',.55);
     else if(wave>=2&&i%5===2)set('🦝','raccoon',.7,.35,'thief',.9);
@@ -962,6 +962,12 @@ function recordProjectileDamagePreview(pr){
   const vals=points.map(s=>s.value),min=Math.min(...vals),max=Math.max(...vals);state.damagePreview={kind:'projectile',weapon:pr.source,points,min,max};
 }
 function drawOptimalReticle(sample,label='best'){if(!sample)return;const p=projectWorld(sample.x,sample.y);ctx.save();ctx.strokeStyle='rgba(255,255,255,.95)';ctx.fillStyle='rgba(255,255,255,.95)';ctx.lineWidth=2;ctx.beginPath();ctx.arc(p.x,p.y,13,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.moveTo(p.x-19,p.y);ctx.lineTo(p.x-7,p.y);ctx.moveTo(p.x+7,p.y);ctx.lineTo(p.x+19,p.y);ctx.moveTo(p.x,p.y-19);ctx.lineTo(p.x,p.y-7);ctx.moveTo(p.x,p.y+7);ctx.lineTo(p.x,p.y+19);ctx.stroke();ctx.font='11px sans-serif';ctx.lineWidth=3;ctx.strokeStyle='rgba(0,0,0,.75)';ctx.strokeText(label,p.x,p.y-23);ctx.fillText(label,p.x,p.y-23);ctx.restore();}
+function liveDamageReticlePoint(){
+  const p=state.player,w=weaponDef();if(!p||!w||w.kind==='deployable')return null;const aim=Math.atan2(state.mouse.y-innerHeight/2,state.mouse.x-innerWidth/2);
+  if(w.kind==='swing'){const a=aim+swingVisualOffset(w);let r=w.reach;if(w.id==='axe')r=w.reach-axeHeadDepth(w)*.45;else if(w.id==='sword')r=w.reach*.58;return{x:p.x+Math.cos(a)*r,y:p.y+Math.sin(a)*r};}
+  const h=chargeLevel(state.mouse.held,w.id),sp=projectileLaunchSpeed(w,h),reference=projectileLaunchSpeed(w,1),fake={speed:sp,referenceSpeed:reference,damage:w.damage||1,damageMult:w.damageMult||1},labelDamage=projectileDamagePotential(fake);return{x:p.x+Math.cos(aim)*46,y:p.y+Math.sin(aim)*46,value:labelDamage};
+}
+function drawLiveDamageReticle(){if(!state.damageView||state.mode!=='game'||!state.player)return;drawOptimalReticle(liveDamageReticlePoint(),'aim best');}
 function drawDamagePreview(){
   const pr=state.damagePreview;if(!state.damageView||!pr)return;ctx.save();ctx.lineCap='round';ctx.lineJoin='round';
   if(pr.kind==='melee'){
@@ -1127,7 +1133,6 @@ function drawWeaponVisual(w, gridW=700, gridH=620, charge=1){
 
 function drawSpecialGlyph(id, gridW, gridH){
   ctx.textAlign='center';ctx.textBaseline='middle';
-  if(id==='stoneLion'){drawStoneLionGlyph(0,0,Math.min(gridW,gridH)*0.8);return true;}
   if(id==='fire'){for(let i=0;i<2;i++){const tick=Math.floor(state.t*12+i)%7,flip=(tick%2?1:-1),sx=flip*(0.75+((tick*13)%35)/100),sy=0.85+((tick*17)%45)/100;ctx.save();ctx.textBaseline='bottom';ctx.translate(i?gridW*0.025:-gridW*0.025,gridH*0.42);ctx.scale(sx,sy);ctx.font=`${Math.round(gridH*0.78)}px serif`;ctx.fillText('🔥',0,0);ctx.restore();}return true;}
   if(id==='poison'||id==='ice'){const glyph=id==='poison'?'☠️':'❄️';ctx.save();ctx.rotate(state.t*0.7);ctx.font=`${Math.round(gridH*0.86)}px serif`;ctx.fillText(glyph,0,0);ctx.restore();ctx.save();ctx.rotate(-state.t*0.95);ctx.scale(0.72,0.72);ctx.font=`${Math.round(gridH*0.86)}px serif`;ctx.fillText(glyph,0,0);ctx.restore();return true;}
   const arrows={arrow1:'➳',arrow2:'➵',arrow3:'➶',arrow4:'➴',arrow5:'➤'}; if(arrows[id]){ctx.font=`${Math.round(gridH*0.92)}px serif`;ctx.fillText(arrows[id],0,0);return true;} return false;
@@ -1218,16 +1223,7 @@ function drawWeaponBar(){
   });ctx.restore();
 }
 
-function drawStoneLionGlyph(x,y,size,alpha=1){
-  ctx.save();ctx.translate(x,y);ctx.globalAlpha*=alpha;ctx.fillStyle='#9da5aa';ctx.strokeStyle='#5f676c';ctx.lineWidth=Math.max(1,size*.055);ctx.lineJoin='round';ctx.lineCap='round';
-  ctx.beginPath();ctx.ellipse(-size*.08,size*.12,size*.38,size*.22,0,0,Math.PI*2);ctx.fill();ctx.stroke();
-  ctx.beginPath();ctx.arc(size*.24,-size*.04,size*.2,0,Math.PI*2);ctx.fill();ctx.stroke();
-  ctx.beginPath();ctx.arc(size*.29,-size*.07,size*.08,0,Math.PI*2);ctx.fillStyle='#c2c8cc';ctx.fill();ctx.stroke();
-  ctx.fillStyle='#7d868c';for(const px of [-.28,-.02,.2])ctx.fillRect(size*px,size*.22,size*.08,size*.18);
-  ctx.beginPath();ctx.moveTo(-size*.43,size*.05);ctx.quadraticCurveTo(-size*.58,-size*.18,-size*.32,-size*.2);ctx.stroke();
-  ctx.fillStyle='#5f676c';ctx.beginPath();ctx.arc(size*.3,-size*.05,size*.018,0,Math.PI*2);ctx.fill();ctx.restore();
-}
-function petrifyStatueLion(e){state.terrain.push({x:e.x,y:e.y,hp:8,glyph:'stoneLion',type:'wall',originGlyph:'stoneLion',originType:'wall',originHp:8,originSolid:true,zoneId:e.zone,renewable:false,solid:true,stump:false,size:26});}
+function petrifyStatueLion(e){state.terrain.push({x:e.x,y:e.y,hp:8,glyph:'🪨',type:'wall',originGlyph:'🪨',originType:'wall',originHp:8,originSolid:true,zoneId:e.zone,renewable:false,solid:true,stump:false,size:24});}
 function drawMountainRims(){
   const specs=[{id:'frost',glyph:'🏔️'},{id:'volcano',glyph:'🌋'}];
   for(const spec of specs){
@@ -1256,13 +1252,13 @@ function render(){updateHudFlashes();ctx.clearRect(0,0,innerWidth,innerHeight); 
     {id:'sawmill',glyph:'🌳',h:1.5,r:4.55*RADIUS_UNIT,color:'#fff'}
   ];
   for(const wp of wps){ const th=(wp.h-3)*Math.PI/6; const wx=MAP_CENTER.x+Math.cos(th)*wp.r, wy=MAP_CENTER.y+Math.sin(th)*wp.r; const actual=projectWorld(wx,wy); const on=actual.x>=30&&actual.x<=innerWidth-30&&actual.y>=30&&actual.y<=innerHeight-30; const dx=actual.x-innerWidth/2,dy=actual.y-innerHeight/2,scale=on?1:Math.min((innerWidth/2-36)/Math.max(1,Math.abs(dx)),(innerHeight/2-36)/Math.max(1,Math.abs(dy)),1); const sx=on?actual.x:innerWidth/2+dx*scale, sy=on?actual.y:innerHeight/2+dy*scale; const dist=Math.hypot(wx-state.player.x,wy-state.player.y); const t=Math.max(0,1-dist/(2.8*RADIUS_UNIT)); const sz=(on?24:34)+56*t; ctx.fillStyle=wp.color; ctx.font=`${sz.toFixed(0)}px serif`; ctx.fillText(wp.glyph,sx,sy);} for(const br of coldBridges){const p=projectWorld(pathPoint(br).x,pathPoint(br).y);ctx.font='24px serif';ctx.fillText('🌉',p.x,p.y);} for(const wp of coldWhirlpools){const p=projectWorld(pathPoint(wp).x,pathPoint(wp).y);ctx.font='24px serif';ctx.fillText('🌀',p.x,p.y);}
- for(const t of state.terrain){const p=projectWorld(t.x,t.y),size=t.size|| (t.glyph==='♜'?22:16);if(t.solid&&!t.stump)drawContrastDisc(p.x,p.y,Math.max(10,size*.62),t.glyph,t.color,.11);drawGroundShadow(p.x,p.y+Math.min(8,size*.28),Math.max(12,size*.8),Math.max(5,size*.28),t.solid?.34:.22); if(t.color)ctx.fillStyle=t.color; else ctx.fillStyle='#fff'; if(t.stump){ctx.fillStyle='#4a2b1a';ctx.fillRect(p.x-5,p.y-5,10,10);} else if(t.glyph==='stoneLion')drawStoneLionGlyph(p.x,p.y,size||26); else {ctx.font=`${size}px serif`; ctx.fillText(t.glyph,p.x,p.y);} }
+ for(const t of state.terrain){const p=projectWorld(t.x,t.y),size=t.size|| (t.glyph==='♜'?22:16);if(t.solid&&!t.stump)drawContrastDisc(p.x,p.y,Math.max(10,size*.62),t.glyph,t.color,.11);drawGroundShadow(p.x,p.y+Math.min(8,size*.28),Math.max(12,size*.8),Math.max(5,size*.28),t.solid?.34:.22); if(t.color)ctx.fillStyle=t.color; else ctx.fillStyle='#fff'; if(t.stump){ctx.fillStyle='#4a2b1a';ctx.fillRect(p.x-5,p.y-5,10,10);} else {ctx.font=`${size}px serif`; ctx.fillText(t.glyph,p.x,p.y);} }
  for(const item of state.deployables){const p=projectWorld(item.x,item.y);ctx.font=item.type==='decoy'?'25px serif':'19px serif';ctx.fillStyle=item.type==='caltrop'?'#d7d7d7':'#fff';ctx.fillText(item.type==='decoy'?'🛡️':'✣',p.x,p.y);}
  if(state.offerNpc){const age=Math.max(0,state.t-(state.offerNpc.born??state.t)),grow=Math.min(1,age/0.9),orbit=10*(1-grow),ox=state.offerNpc.x+Math.cos(age*8)*orbit,oy=state.offerNpc.y+Math.sin(age*8)*orbit,p=projectWorld(ox,oy);drawContrastDisc(p.x,p.y,18*grow,state.offerNpc.glyph,null,.12);ctx.save();ctx.translate(p.x,p.y);ctx.scale(grow,grow);ctx.font='28px serif';ctx.fillStyle='#fff';ctx.fillText(state.offerNpc.glyph,0,0);ctx.font='12px sans-serif';ctx.fillText('upgrade?',-12,14);ctx.restore();}
- for(const e of state.enemies){const p=projectWorld(e.x,e.y),grow=e.kind==='mushroom'?Math.max(.25,1-(e.growT||0)/3):1,size=(e.archetype==='tank'?24:e.archetype==='charger'?19:e.archetype==='fly'?14:16)*grow*(e.visualScale||1);drawContrastDisc(p.x,p.y,Math.max(9,size*.68),e.glyph,null,.14);drawGroundShadow(p.x,p.y+Math.min(7,size*.3),Math.max(8,size*.75),Math.max(4,size*.24),e.archetype==='fly'?.18:.34);if(e.kind==='statueLion')drawStoneLionGlyph(p.x,p.y,size);else if(e.kind==='firefly'||e.kind==='fireAnt')drawFieryInsect(e,p,size);else{ctx.font=`${size}px serif`;ctx.fillStyle='#fff';ctx.fillText(e.glyph,p.x,p.y);}if(e.weapon){ctx.font='12px serif';ctx.fillText(e.weapon,p.x+12,p.y-8);}drawStatusIcons(e,p.x,p.y);}
+ for(const e of state.enemies){const p=projectWorld(e.x,e.y),grow=e.kind==='mushroom'?Math.max(.25,1-(e.growT||0)/3):1,size=(e.archetype==='tank'?24:e.archetype==='charger'?19:e.archetype==='fly'?14:16)*grow*(e.visualScale||1);drawContrastDisc(p.x,p.y,Math.max(9,size*.68),e.glyph,null,.14);drawGroundShadow(p.x,p.y+Math.min(7,size*.3),Math.max(8,size*.75),Math.max(4,size*.24),e.archetype==='fly'?.18:.34);if(e.kind==='firefly'||e.kind==='fireAnt')drawFieryInsect(e,p,size);else{ctx.font=`${size}px serif`;ctx.fillStyle='#fff';ctx.fillText(e.glyph,p.x,p.y);}if(e.weapon){ctx.font='12px serif';ctx.fillText(e.weapon,p.x+12,p.y-8);}drawStatusIcons(e,p.x,p.y);}
  for(const item of state.pickups){const q=projectWorld(item.x,item.y);ctx.fillStyle=item.color;ctx.font=item.ammo==='arrows'?'18px serif':'14px serif';if(item.ammo==='arrows')ctx.fillText(item.glyph,q.x,q.y);else{ctx.beginPath();ctx.arc(q.x,q.y,3.5,0,Math.PI*2);ctx.fill();}}
  for(const pr of state.projectiles){const p=projectWorld(pr.x,pr.y),a=pr.glyph==='triangle'?(pr.rotation||0):Math.atan2(pr.vy,pr.vx);if(pr.hostile)drawContrastDisc(p.x,p.y,Math.max(6,(pr.size||8)*.48),pr.glyph,pr.color,.14); ctx.save();ctx.translate(p.x,p.y);ctx.rotate(a);ctx.fillStyle=pr.color||'#111'; if(pr.glyph==='triangle'){ctx.beginPath();ctx.moveTo(pr.size*0.7,0);ctx.lineTo(-pr.size*0.45,-pr.size*0.45);ctx.lineTo(-pr.size*0.45,pr.size*0.45);ctx.closePath();ctx.fill();} else if(pr.glyph!=='●'){ctx.font=`${pr.size}px serif`;ctx.fillText(pr.glyph,0,0);} else {ctx.beginPath();ctx.arc(0,0,pr.size*0.25,0,Math.PI*2);ctx.fill();} ctx.restore(); if(pr.element){ctx.font='13px serif';ctx.fillText(ELEMENT_GLYPHS[pr.element],p.x+9,p.y-10);}}
- drawSuitFeedback();
+ drawLiveDamageReticle();drawSuitFeedback();
  const pp=projectWorld(state.player.x,state.player.y),aim=Math.atan2(state.mouse.y-innerHeight/2,state.mouse.x-innerWidth/2),w=weaponDef(); ctx.textAlign='center';ctx.textBaseline='middle';drawGroundShadow(pp.x,pp.y+10,state.mount==='horse'?25:17,state.mount==='horse'?9:7,.4); if(state.mount==='horse'&&state.player.unlocked.has('horse')){ctx.font='30px serif';ctx.fillText('🐎',pp.x,pp.y+8);} ctx.font='20px serif';ctx.fillStyle='#fff';ctx.fillText('🙂',pp.x,pp.y); if(state.player.shield){ctx.font='18px serif';ctx.fillText('🛡️',pp.x-18,pp.y+4);}
  ctx.save();ctx.translate(pp.x,pp.y); drawHeldWeapon(w,aim); if(state.activeElement&&state.elements[state.activeElement]>0){ctx.font='14px serif';ctx.fillText(ELEMENT_GLYPHS[state.activeElement],Math.cos(aim)*28,Math.sin(aim)*28-10);} ctx.restore(); drawStatusIcons(state.player,pp.x,pp.y);
  const z=getZone(state.player.x,state.player.y); const dx=state.player.x-MAP_CENTER.x,dy=state.player.y-MAP_CENTER.y,rad=(Math.hypot(dx,dy)/(5*CELL*WORLD_SCALE)).toFixed(2),clock=wrap12((Math.atan2(dy,dx)*6/Math.PI)+3).toFixed(2);
