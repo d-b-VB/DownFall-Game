@@ -58,7 +58,7 @@ const zones = [
 ];
 
 const state = { mode:'menu',glyphWeapon:'club',t:0,last:0,keys:new Set(),mouse:{x:0,y:0,vx:0,vy:0,lastT:0,down:false,held:0},camera:{x:MAP_CENTER.x,y:MAP_CENTER.y},player:null,projectiles:[],pickups:[],enemies:[],terrain:[],waves:{},mount:'foot',debug:[],diamonds:0,ammo:{arrows:0,bolts:0,jars:0,pellets:0,cannonballs:0},elements:{fire:0,ice:0,poison:0},activeElement:null,meta:{},pendingReward:null,deferredRewards:[],shopOpen:false,offerNpc:null,currentZone:null,run:1,hazards:[],deployables:[],feedback:[],hudFlash:{hp:0,diamonds:0,lastHp:null,lastDiamonds:null},fungusRespawns:{},nextEnemyId:1,finance:{savings:0,debt:0,trust:0,trustAvailable:0,amounts:{savings:5,loan:10,trust:5}},casinoWagers:{coin:1,dice:1,card:1},shopPurchases:{},damageView:false,damagePreview:null};
-const BUILD_VERSION = 'v0.27.9 build 2026-06-23 01:44 UTC';
+const BUILD_VERSION = 'v0.27.10 build 2026-06-23 02:02 UTC';
 const wrap12=h=>(h%12+12)%12; const inArc=(h,[s,e])=>{h=wrap12(h);s=wrap12(s);e=wrap12(e);if(s===e)return true;return s<=e?(h>=s&&h<e):(h>=s||h<e)}; const toClockHour=t=>wrap12((t*6/Math.PI)+3);
 const DEPLOYABLE_TOOLS={caltrop:{id:'caltrop',glyph:'✣',kind:'deployable',cooldown:.2},decoy:{id:'decoy',glyph:'🛡️',kind:'deployable',cooldown:.2}};
 const weaponDef=()=>weapons.find(w=>w.id===state.player.weapon)||DEPLOYABLE_TOOLS[state.player.weapon];
@@ -964,10 +964,10 @@ function recordProjectileDamagePreview(pr){
 function drawOptimalReticle(sample,label='best'){if(!sample)return;const p=projectWorld(sample.x,sample.y);ctx.save();ctx.strokeStyle='rgba(255,255,255,.95)';ctx.fillStyle='rgba(255,255,255,.95)';ctx.lineWidth=2;ctx.beginPath();ctx.arc(p.x,p.y,13,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.moveTo(p.x-19,p.y);ctx.lineTo(p.x-7,p.y);ctx.moveTo(p.x+7,p.y);ctx.lineTo(p.x+19,p.y);ctx.moveTo(p.x,p.y-19);ctx.lineTo(p.x,p.y-7);ctx.moveTo(p.x,p.y+7);ctx.lineTo(p.x,p.y+19);ctx.stroke();ctx.font='11px sans-serif';ctx.lineWidth=3;ctx.strokeStyle='rgba(0,0,0,.75)';ctx.strokeText(label,p.x,p.y-23);ctx.fillText(label,p.x,p.y-23);ctx.restore();}
 function liveDamageReticlePoint(){
   const p=state.player,w=weaponDef();if(!p||!w||w.kind==='deployable')return null;const aim=Math.atan2(state.mouse.y-innerHeight/2,state.mouse.x-innerWidth/2);
-  if(w.kind==='swing'){const a=aim+swingVisualOffset(w);let r=w.reach;if(w.id==='axe')r=w.reach-axeHeadDepth(w)*.45;else if(w.id==='sword')r=w.reach*.58;return{x:p.x+Math.cos(a)*r,y:p.y+Math.sin(a)*r};}
+  if(w.kind==='swing'){const a=aim;let r=w.reach;if(w.id==='axe')r=w.reach-axeHeadDepth(w)*.45;else if(w.id==='sword')r=w.reach*.58;return{x:p.x+Math.cos(a)*r,y:p.y+Math.sin(a)*r};}
   const h=chargeLevel(state.mouse.held,w.id),sp=projectileLaunchSpeed(w,h),reference=projectileLaunchSpeed(w,1),fake={speed:sp,referenceSpeed:reference,damage:w.damage||1,damageMult:w.damageMult||1},labelDamage=projectileDamagePotential(fake);return{x:p.x+Math.cos(aim)*46,y:p.y+Math.sin(aim)*46,value:labelDamage};
 }
-function drawLiveDamageReticle(){if(!state.damageView||state.mode!=='game'||!state.player)return;drawOptimalReticle(liveDamageReticlePoint(),'aim best');}
+function drawLiveDamageReticle(){if(!state.damageView||state.mode!=='game'||!state.player)return;drawOptimalReticle(liveDamageReticlePoint(),'strike');}
 function drawDamagePreview(){
   const pr=state.damagePreview;if(!state.damageView||!pr)return;ctx.save();ctx.lineCap='round';ctx.lineJoin='round';
   if(pr.kind==='melee'){
