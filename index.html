@@ -15,7 +15,8 @@
     .shop-section strong { color:#ffe28a; }
     .upgrade-group { display:inline-flex; align-items:center; gap:4px; margin:6px 8px 0 0; padding-left:8px; border-left:2px solid #ffffff24; }
     .upgrade-group em { color:#b9d9c2; font-style:normal; text-transform:capitalize; }
-    .shop-modal { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); width:min(560px,calc(100vw - 40px)); max-height:80vh; overflow:auto; padding:16px; border:1px solid #ffffff44; border-radius:14px; background:#151a18f5; box-shadow:0 20px 80px #000; z-index:40; }
+    .shop-modal { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); width:min(560px,calc(100vw - 40px)); max-height:80vh; overflow:auto; overscroll-behavior:contain; padding:16px; border:1px solid #ffffff44; border-radius:14px; background:#151a18f5; box-shadow:0 20px 80px #000; z-index:40; }
+    .cheat-modal summary { cursor:pointer; user-select:none; padding:5px 0; color:#ffe28a; }
     .symbol-button { position:relative; min-width:43px; min-height:43px; margin:2px; font-size:24px; border-radius:9px; }
     .symbol-button small { display:block; font:10px system-ui,sans-serif; color:#ffe28a; }
     #button-tooltip { position:fixed; display:none; width:max-content; max-width:min(300px,calc(100vw - 24px)); padding:8px 10px; border:1px solid #ffffff35; border-radius:7px; background:#050706f5; color:#fff; font:12px/1.35 system-ui,sans-serif; pointer-events:none; z-index:80; box-shadow:0 4px 18px #000; }
