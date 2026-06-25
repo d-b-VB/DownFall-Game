@@ -58,7 +58,7 @@ const zones = [
 ];
 
 const state = { mode:'menu',glyphWeapon:'club',t:0,last:0,keys:new Set(),mouse:{x:0,y:0,vx:0,vy:0,lastT:0,down:false,held:0},camera:{x:MAP_CENTER.x,y:MAP_CENTER.y},player:null,projectiles:[],pickups:[],enemies:[],terrain:[],waves:{},mount:'foot',debug:[],diamonds:0,ammo:{arrows:0,bolts:0,jars:0,pellets:0,cannonballs:0},elements:{fire:0,ice:0,poison:0},activeElement:null,meta:{},pendingReward:null,deferredRewards:[],shopOpen:false,offerNpc:null,currentZone:null,run:1,hazards:[],deployables:[],feedback:[],hudFlash:{hp:0,diamonds:0,lastHp:null,lastDiamonds:null},fungusRespawns:{},nextEnemyId:1,finance:{savings:0,debt:0,trust:0,trustAvailable:0,amounts:{savings:5,loan:10,trust:5}},casinoWagers:{coin:1,dice:1,card:1},shopPurchases:{},damageView:false,damagePreview:null,grapeshotTest:null,cheatOpen:false,cheatUiDirty:false,consumableAmounts:{}};
-const BUILD_VERSION = 'v0.28.5 build 2026-06-25 01:18 UTC';
+const BUILD_VERSION = 'v0.28.6 build 2026-06-25 01:48 UTC';
 const wrap12=h=>(h%12+12)%12; const inArc=(h,[s,e])=>{h=wrap12(h);s=wrap12(s);e=wrap12(e);if(s===e)return true;return s<=e?(h>=s&&h<e):(h>=s||h<e)}; const toClockHour=t=>wrap12((t*6/Math.PI)+3);
 const DEPLOYABLE_TOOLS={caltrop:{id:'caltrop',glyph:'✣',kind:'deployable',cooldown:.2},decoy:{id:'decoy',glyph:'🛡️',kind:'deployable',cooldown:.2}};
 const weaponDef=()=>weapons.find(w=>w.id===state.player.weapon)||DEPLOYABLE_TOOLS[state.player.weapon];
@@ -1147,7 +1147,7 @@ function drawWeaponVisual(w, gridW=700, gridH=620, charge=1){
   if(w.id==='club'){ctx.strokeStyle='#6f3f1f';ctx.lineWidth=Math.max(3,gridH*0.045);ctx.lineCap='round';ctx.beginPath();ctx.moveTo(-gridW*0.43,0);ctx.lineTo(gridW*0.43,0);ctx.stroke();return;}
   if(w.id==='axe'){ctx.font=`${Math.round(Math.max(gridW,gridH)*0.72)}px serif`;ctx.fillText('🪓',0,0);return;}
   if(w.id==='sword'){ctx.strokeStyle='#6d4c41';ctx.lineWidth=Math.max(1.5,gridH*.045);ctx.lineCap='round';ctx.beginPath();ctx.moveTo(-gridW*.42,0);ctx.lineTo(-gridW*.24,0);ctx.stroke();ctx.strokeStyle='#e4edf2';ctx.lineWidth=Math.max(1.25,gridH*.028);ctx.lineCap='butt';ctx.beginPath();ctx.moveTo(-gridW*.22,0);ctx.lineTo(gridW*.44,0);ctx.stroke();ctx.strokeStyle='rgba(69,90,100,.75)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(-gridW*.22,0);ctx.lineTo(gridW*.44,0);ctx.stroke();return;}
-  if(w.id==='bow'||w.id==='ballista'){const sx=0.56+0.44*charge; ctx.save();ctx.scale(sx,1);ctx.font=`${Math.round(gridH*(w.id==='ballista'?0.82:0.9))}px serif`;ctx.fillText('🏹',0,0);ctx.restore(); if(w.id==='ballista'){ctx.font=`${Math.round(gridH*0.38)}px serif`;ctx.fillText('⚙️',gridW*0.12,gridH*0.08);}return;}
+  if(w.id==='bow'||w.id==='ballista'){const sx=0.56+0.44*charge; ctx.save();if(w.id==='ballista')ctx.scale(1.85*sx,1.85);else ctx.scale(sx,1);ctx.font=`${Math.round(gridH*(w.id==='ballista'?0.82:0.9))}px serif`;ctx.fillText('🏹',0,0);ctx.restore(); if(w.id==='ballista'){ctx.save();ctx.scale(1.55,1.55);ctx.font=`${Math.round(gridH*0.38)}px serif`;ctx.fillText('⚙️',gridW*0.12,gridH*0.08);ctx.restore();}return;}
   if(w.id==='cannon'){ctx.save();ctx.rotate(-Math.PI/2);ctx.scale(0.65,1.2);ctx.font=`${Math.round(gridH*0.92)}px serif`;ctx.fillText('🔔',0,0);ctx.restore();return;}
   ctx.font=`${Math.round(gridH*0.9)}px serif`;ctx.fillText(w.glyph,0,0);
 }
@@ -1197,12 +1197,12 @@ function renderGlyphTest(){
 }
 
 function ensureGrapeshotTest(){
-  if(!state.grapeshotTest)state.grapeshotTest={diameter:34,barrelMult:3,pellets:10,spreadSpeed:340,absorb:0.10,shots:[],lastFire:0};
+  if(!state.grapeshotTest)state.grapeshotTest={diameter:34,barrelMult:3,detonation:0,pellets:10,spreadSpeed:340,absorb:0.10,shots:[],lastFire:0};
   return state.grapeshotTest;
 }
 function fireGrapeshotTest(){
-  const g=ensureGrapeshotTest(),r=g.diameter/2,origin={x:170,y:innerHeight/2};g.shots=[];g.lastFire=state.t;
-  for(let i=0;i<g.pellets;i++){const a=(i/g.pellets)*Math.PI*2+(Math.random()-.5)*0.24,sp=g.spreadSpeed*(0.88+Math.random()*0.24);g.shots.push({x:origin.x,y:origin.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,trail:[],out:false});}
+  const g=ensureGrapeshotTest(),r=g.diameter/2,origin={x:170,y:innerHeight/2},len=g.diameter*g.barrelMult,detX=origin.x+len*g.detonation;g.shots=[];g.lastFire=state.t;
+  for(let i=0;i<g.pellets;i++){const a=(i/g.pellets)*Math.PI*2+(Math.random()-.5)*0.24,sp=g.spreadSpeed*(0.88+Math.random()*0.24);g.shots.push({x:detX,y:origin.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,trail:[],out:false});}
 }
 function updateGrapeshotTest(dt){
   const g=ensureGrapeshotTest(),r=g.diameter/2,origin={x:170,y:innerHeight/2},muzzle=origin.x+g.diameter*g.barrelMult;
@@ -1210,12 +1210,12 @@ function updateGrapeshotTest(dt){
 }
 function renderGrapeshotTest(){
   const g=ensureGrapeshotTest(),r=g.diameter/2,origin={x:170,y:innerHeight/2},len=g.diameter*g.barrelMult,muzzle=origin.x+len;
-  ctx.clearRect(0,0,innerWidth,innerHeight);ctx.fillStyle='#142033';ctx.fillRect(0,0,innerWidth,innerHeight);ctx.save();ctx.translate(origin.x,origin.y);ctx.fillStyle='#20252c';ctx.strokeStyle='#e5e7eb';ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,r,Math.PI/2,Math.PI*1.5);ctx.lineTo(len,-r);ctx.lineTo(len,r);ctx.closePath();ctx.fill();ctx.stroke();ctx.fillStyle='#111';ctx.beginPath();ctx.arc(0,0,r*.24,0,Math.PI*2);ctx.fill();ctx.restore();ctx.strokeStyle='rgba(255,255,255,.22)';ctx.setLineDash([6,8]);ctx.beginPath();ctx.moveTo(muzzle,origin.y-r*1.7);ctx.lineTo(muzzle,origin.y+r*1.7);ctx.stroke();ctx.setLineDash([]);
+  const detX=origin.x+len*g.detonation;ctx.clearRect(0,0,innerWidth,innerHeight);ctx.fillStyle='#142033';ctx.fillRect(0,0,innerWidth,innerHeight);ctx.save();ctx.translate(origin.x,origin.y);ctx.fillStyle='#20252c';ctx.strokeStyle='#e5e7eb';ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,r,Math.PI/2,Math.PI*1.5);ctx.lineTo(len,-r);ctx.lineTo(len,r);ctx.closePath();ctx.fill();ctx.stroke();ctx.fillStyle='#111';ctx.beginPath();ctx.arc(0,0,r*.24,0,Math.PI*2);ctx.fill();ctx.restore();ctx.strokeStyle='rgba(255,255,255,.22)';ctx.setLineDash([6,8]);ctx.beginPath();ctx.moveTo(muzzle,origin.y-r*1.7);ctx.lineTo(muzzle,origin.y+r*1.7);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#f8fafc';ctx.strokeStyle='#0f172a';ctx.lineWidth=2;ctx.beginPath();ctx.arc(detX,origin.y,7,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.font='11px sans-serif';ctx.fillStyle='#f8fafc';ctx.fillText('detonation',detX,origin.y-r-14);
   for(const pellet of g.shots){ctx.strokeStyle='rgba(255,210,80,.35)';ctx.beginPath();pellet.trail.forEach((q,i)=>i?ctx.lineTo(q.x,q.y):ctx.moveTo(q.x,q.y));ctx.stroke();ctx.fillStyle=pellet.out?'#ffe66d':'#ff8a3d';ctx.beginPath();ctx.arc(pellet.x,pellet.y,4,0,Math.PI*2);ctx.fill();}
-  ui.innerHTML=`Mode: Grapeshot Test<br><button type="button" data-mode="game">Play Game</button> <button type="button" data-mode="glyph">Glyph Test</button> <button type="button" data-mode="menu">Menu</button><br><br>${grapeControl('diameter','Cannonball diameter',g.diameter,2)}${grapeControl('barrelMult','Barrel length × diameter',g.barrelMult,.25)}${grapeControl('pellets','Pellets',g.pellets,1)}${grapeControl('spreadSpeed','Expansion speed',g.spreadSpeed,25)}${grapeControl('absorb','Wall absorption',g.absorb,.02)}<button type="button" data-grape-fire="1" style="font-size:18px;padding:8px 18px">Fire</button>`;
+  ui.innerHTML=`Mode: Grapeshot Test<br><button type="button" data-mode="game">Play Game</button> <button type="button" data-mode="glyph">Glyph Test</button> <button type="button" data-mode="menu">Menu</button><br><br>${grapeControl('diameter','Cannonball diameter',g.diameter,2)}${grapeControl('barrelMult','Barrel length × diameter',g.barrelMult,.25)}${grapeControl('detonation','Detonation point',g.detonation,.05)}${grapeControl('pellets','Pellets',g.pellets,1)}${grapeControl('spreadSpeed','Expansion speed',g.spreadSpeed,25)}${grapeControl('absorb','Wall absorption',g.absorb,.02)}<button type="button" data-grape-fire="1" style="font-size:18px;padding:8px 18px">Fire</button>`;
 }
-function grapeControl(key,label,value,step){return `<div>${label}: <button type="button" data-grape-adjust="${key}" data-grape-delta="${-step}">−</button> <strong>${key==='absorb'?(value*100).toFixed(0)+'%':Number(value).toFixed(key==='barrelMult'?2:0)}</strong> <button type="button" data-grape-adjust="${key}" data-grape-delta="${step}">+</button></div>`;}
-function adjustGrapeshotTest(key,delta){const g=ensureGrapeshotTest();g[key]+=delta;if(key==='diameter')g[key]=Math.max(12,Math.min(80,g[key]));if(key==='barrelMult')g[key]=Math.max(1,Math.min(8,g[key]));if(key==='pellets')g[key]=Math.max(1,Math.min(60,Math.round(g[key])));if(key==='spreadSpeed')g[key]=Math.max(40,Math.min(1400,g[key]));if(key==='absorb')g[key]=Math.max(0,Math.min(.75,g[key]));}
+function grapeControl(key,label,value,step){return `<div>${label}: <button type="button" data-grape-adjust="${key}" data-grape-delta="${-step}">−</button> <strong>${key==='absorb'||key==='detonation'?(value*100).toFixed(0)+'%':Number(value).toFixed(key==='barrelMult'?2:0)}</strong> <button type="button" data-grape-adjust="${key}" data-grape-delta="${step}">+</button></div>`;}
+function adjustGrapeshotTest(key,delta){const g=ensureGrapeshotTest();g[key]+=delta;if(key==='diameter')g[key]=Math.max(12,Math.min(80,g[key]));if(key==='barrelMult')g[key]=Math.max(1,Math.min(8,g[key]));if(key==='detonation')g[key]=Math.max(0,Math.min(1,g[key]));if(key==='pellets')g[key]=Math.max(1,Math.min(60,Math.round(g[key])));if(key==='spreadSpeed')g[key]=Math.max(40,Math.min(1400,g[key]));if(key==='absorb')g[key]=Math.max(0,Math.min(.75,g[key]));}
 
 
 function statusIconScale(o,type){
@@ -1282,7 +1282,7 @@ function rememberCheatUiState(){const modal=ui.querySelector('.cheat-modal');ret
 function restoreCheatUiState(snapshot){if(!snapshot)return;const modal=ui.querySelector('.cheat-modal');if(!modal)return;for(const id of snapshot.open){const d=modal.querySelector(`details[data-cheat-zone="${id}"]`);if(d)d.open=true;}modal.scrollTop=snapshot.scrollTop;}
 
 function drawWeaponBar(){
-  const entries=[...weapons.filter(w=>state.player.unlocked.has(w.id)).map(w=>({slot:weapons.indexOf(w)+1,glyph:w.id==='club'?'┃':w.glyph,active:w.id===state.player.weapon})),...(state.player.caltrops>0?[{slot:8,glyph:'✣',count:state.player.caltrops,active:state.player.weapon==='caltrop'}]:[]),...(state.player.decoys>0?[{slot:9,glyph:'🛡️',count:state.player.decoys,active:state.player.weapon==='decoy'}]:[])];
+  const entries=[...weapons.filter(w=>state.player.unlocked.has(w.id)).map(w=>({slot:weapons.indexOf(w)+1,id:w.id,weapon:w,glyph:w.id==='club'?'┃':w.glyph,active:w.id===state.player.weapon})),...(state.player.caltrops>0?[{slot:8,glyph:'✣',count:state.player.caltrops,active:state.player.weapon==='caltrop'}]:[]),...(state.player.decoys>0?[{slot:9,glyph:'🛡️',count:state.player.decoys,active:state.player.weapon==='decoy'}]:[])];
   const cell=54,total=entries.length*cell,x0=innerWidth/2-total/2,y=innerHeight-38;ctx.save();ctx.textAlign='center';ctx.textBaseline='middle';ctx.font='12px sans-serif';
   entries.forEach((entry,i)=>{
     const x=x0+i*cell+cell/2,left=x-23,top=y-25,width=46,height=48;
@@ -1297,7 +1297,7 @@ function drawWeaponBar(){
       ctx.restore();
     }else{ctx.fillStyle='rgba(0,0,0,.62)';ctx.fill();}
     ctx.strokeStyle=entry.active?'#fff':'#ffffff55';ctx.lineWidth=entry.active?3:1;ctx.beginPath();ctx.roundRect(left,top,width,height,8);ctx.stroke();
-    ctx.fillStyle='#fff';ctx.font='12px sans-serif';ctx.fillText(String(entry.slot),x-16,y-16);ctx.font='22px serif';ctx.fillText(entry.glyph,x,y+3);
+    ctx.fillStyle='#fff';ctx.font='12px sans-serif';ctx.fillText(String(entry.slot),x-16,y-16);if(entry.weapon&&(entry.id==='ballista'||entry.id==='cannon')){ctx.save();ctx.translate(x,y+3);drawWeaponVisual(entry.weapon,entry.id==='ballista'?26:34,entry.id==='ballista'?23:28,1);ctx.restore();}else{ctx.font='22px serif';ctx.fillText(entry.glyph,x,y+3);}
     if(entry.count!==undefined){ctx.font='11px sans-serif';ctx.fillText(String(entry.count),x+16,y+16);}
   });ctx.restore();
 }
