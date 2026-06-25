@@ -58,7 +58,7 @@ const zones = [
 ];
 
 const state = { mode:'menu',glyphWeapon:'club',t:0,last:0,keys:new Set(),mouse:{x:0,y:0,vx:0,vy:0,lastT:0,down:false,held:0},camera:{x:MAP_CENTER.x,y:MAP_CENTER.y},player:null,projectiles:[],pickups:[],enemies:[],terrain:[],waves:{},mount:'foot',debug:[],diamonds:0,ammo:{arrows:0,bolts:0,jars:0,pellets:0,cannonballs:0},elements:{fire:0,ice:0,poison:0},activeElement:null,meta:{},pendingReward:null,deferredRewards:[],shopOpen:false,offerNpc:null,currentZone:null,run:1,hazards:[],deployables:[],feedback:[],hudFlash:{hp:0,diamonds:0,lastHp:null,lastDiamonds:null},fungusRespawns:{},nextEnemyId:1,finance:{savings:0,debt:0,trust:0,trustAvailable:0,amounts:{savings:5,loan:10,trust:5}},casinoWagers:{coin:1,dice:1,card:1},shopPurchases:{},damageView:false,damagePreview:null,grapeshotTest:null,cheatOpen:false,cheatUiDirty:false,consumableAmounts:{}};
-const BUILD_VERSION = 'v0.28.6 build 2026-06-25 01:48 UTC';
+const BUILD_VERSION = 'v0.28.7 build 2026-06-25 02:05 UTC';
 const wrap12=h=>(h%12+12)%12; const inArc=(h,[s,e])=>{h=wrap12(h);s=wrap12(s);e=wrap12(e);if(s===e)return true;return s<=e?(h>=s&&h<e):(h>=s||h<e)}; const toClockHour=t=>wrap12((t*6/Math.PI)+3);
 const DEPLOYABLE_TOOLS={caltrop:{id:'caltrop',glyph:'✣',kind:'deployable',cooldown:.2},decoy:{id:'decoy',glyph:'🛡️',kind:'deployable',cooldown:.2}};
 const weaponDef=()=>weapons.find(w=>w.id===state.player.weapon)||DEPLOYABLE_TOOLS[state.player.weapon];
@@ -1197,11 +1197,13 @@ function renderGlyphTest(){
 }
 
 function ensureGrapeshotTest(){
-  if(!state.grapeshotTest)state.grapeshotTest={diameter:34,barrelMult:3,detonation:0,pellets:10,spreadSpeed:340,absorb:0.10,shots:[],lastFire:0};
+  if(!state.grapeshotTest)state.grapeshotTest={diameter:34,barrelMult:3,detonation:-1/6,pellets:10,spreadSpeed:340,absorb:0.10,shots:[],lastFire:0};
   return state.grapeshotTest;
 }
+function grapeDetonationMin(g){return -0.5/Math.max(0.25,g.barrelMult);}
+function clampedGrapeDetonation(g){return Math.max(grapeDetonationMin(g),Math.min(1,g.detonation));}
 function fireGrapeshotTest(){
-  const g=ensureGrapeshotTest(),r=g.diameter/2,origin={x:170,y:innerHeight/2},len=g.diameter*g.barrelMult,detX=origin.x+len*g.detonation;g.shots=[];g.lastFire=state.t;
+  const g=ensureGrapeshotTest(),r=g.diameter/2,origin={x:170,y:innerHeight/2},len=g.diameter*g.barrelMult,detX=origin.x+len*clampedGrapeDetonation(g);g.shots=[];g.lastFire=state.t;
   for(let i=0;i<g.pellets;i++){const a=(i/g.pellets)*Math.PI*2+(Math.random()-.5)*0.24,sp=g.spreadSpeed*(0.88+Math.random()*0.24);g.shots.push({x:detX,y:origin.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,trail:[],out:false});}
 }
 function updateGrapeshotTest(dt){
@@ -1210,12 +1212,12 @@ function updateGrapeshotTest(dt){
 }
 function renderGrapeshotTest(){
   const g=ensureGrapeshotTest(),r=g.diameter/2,origin={x:170,y:innerHeight/2},len=g.diameter*g.barrelMult,muzzle=origin.x+len;
-  const detX=origin.x+len*g.detonation;ctx.clearRect(0,0,innerWidth,innerHeight);ctx.fillStyle='#142033';ctx.fillRect(0,0,innerWidth,innerHeight);ctx.save();ctx.translate(origin.x,origin.y);ctx.fillStyle='#20252c';ctx.strokeStyle='#e5e7eb';ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,r,Math.PI/2,Math.PI*1.5);ctx.lineTo(len,-r);ctx.lineTo(len,r);ctx.closePath();ctx.fill();ctx.stroke();ctx.fillStyle='#111';ctx.beginPath();ctx.arc(0,0,r*.24,0,Math.PI*2);ctx.fill();ctx.restore();ctx.strokeStyle='rgba(255,255,255,.22)';ctx.setLineDash([6,8]);ctx.beginPath();ctx.moveTo(muzzle,origin.y-r*1.7);ctx.lineTo(muzzle,origin.y+r*1.7);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#f8fafc';ctx.strokeStyle='#0f172a';ctx.lineWidth=2;ctx.beginPath();ctx.arc(detX,origin.y,7,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.font='11px sans-serif';ctx.fillStyle='#f8fafc';ctx.fillText('detonation',detX,origin.y-r-14);
+  const detX=origin.x+len*clampedGrapeDetonation(g);ctx.clearRect(0,0,innerWidth,innerHeight);ctx.fillStyle='#142033';ctx.fillRect(0,0,innerWidth,innerHeight);ctx.save();ctx.translate(origin.x,origin.y);ctx.fillStyle='#20252c';ctx.strokeStyle='#e5e7eb';ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,r,Math.PI/2,Math.PI*1.5);ctx.lineTo(len,-r);ctx.lineTo(len,r);ctx.closePath();ctx.fill();ctx.stroke();ctx.fillStyle='#111';ctx.beginPath();ctx.arc(0,0,r*.24,0,Math.PI*2);ctx.fill();ctx.restore();ctx.strokeStyle='rgba(255,255,255,.22)';ctx.setLineDash([6,8]);ctx.beginPath();ctx.moveTo(muzzle,origin.y-r*1.7);ctx.lineTo(muzzle,origin.y+r*1.7);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#f8fafc';ctx.strokeStyle='#0f172a';ctx.lineWidth=2;ctx.beginPath();ctx.arc(detX,origin.y,7,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.font='11px sans-serif';ctx.fillStyle='#f8fafc';ctx.fillText('detonation',detX,origin.y-r-14);
   for(const pellet of g.shots){ctx.strokeStyle='rgba(255,210,80,.35)';ctx.beginPath();pellet.trail.forEach((q,i)=>i?ctx.lineTo(q.x,q.y):ctx.moveTo(q.x,q.y));ctx.stroke();ctx.fillStyle=pellet.out?'#ffe66d':'#ff8a3d';ctx.beginPath();ctx.arc(pellet.x,pellet.y,4,0,Math.PI*2);ctx.fill();}
-  ui.innerHTML=`Mode: Grapeshot Test<br><button type="button" data-mode="game">Play Game</button> <button type="button" data-mode="glyph">Glyph Test</button> <button type="button" data-mode="menu">Menu</button><br><br>${grapeControl('diameter','Cannonball diameter',g.diameter,2)}${grapeControl('barrelMult','Barrel length × diameter',g.barrelMult,.25)}${grapeControl('detonation','Detonation point',g.detonation,.05)}${grapeControl('pellets','Pellets',g.pellets,1)}${grapeControl('spreadSpeed','Expansion speed',g.spreadSpeed,25)}${grapeControl('absorb','Wall absorption',g.absorb,.02)}<button type="button" data-grape-fire="1" style="font-size:18px;padding:8px 18px">Fire</button>`;
+  ui.innerHTML=`Mode: Grapeshot Test<br><button type="button" data-mode="game">Play Game</button> <button type="button" data-mode="glyph">Glyph Test</button> <button type="button" data-mode="menu">Menu</button><br><br>${grapeControl('diameter','Cannonball diameter',g.diameter,2)}${grapeControl('barrelMult','Barrel length × diameter',g.barrelMult,.25)}${grapeControl('detonation','Detonation point',clampedGrapeDetonation(g),.05)}${grapeControl('pellets','Pellets',g.pellets,1)}${grapeControl('spreadSpeed','Expansion speed',g.spreadSpeed,25)}${grapeControl('absorb','Wall absorption',g.absorb,.02)}<button type="button" data-grape-fire="1" style="font-size:18px;padding:8px 18px">Fire</button>`;
 }
 function grapeControl(key,label,value,step){return `<div>${label}: <button type="button" data-grape-adjust="${key}" data-grape-delta="${-step}">−</button> <strong>${key==='absorb'||key==='detonation'?(value*100).toFixed(0)+'%':Number(value).toFixed(key==='barrelMult'?2:0)}</strong> <button type="button" data-grape-adjust="${key}" data-grape-delta="${step}">+</button></div>`;}
-function adjustGrapeshotTest(key,delta){const g=ensureGrapeshotTest();g[key]+=delta;if(key==='diameter')g[key]=Math.max(12,Math.min(80,g[key]));if(key==='barrelMult')g[key]=Math.max(1,Math.min(8,g[key]));if(key==='detonation')g[key]=Math.max(0,Math.min(1,g[key]));if(key==='pellets')g[key]=Math.max(1,Math.min(60,Math.round(g[key])));if(key==='spreadSpeed')g[key]=Math.max(40,Math.min(1400,g[key]));if(key==='absorb')g[key]=Math.max(0,Math.min(.75,g[key]));}
+function adjustGrapeshotTest(key,delta){const g=ensureGrapeshotTest();g[key]+=delta;if(key==='diameter')g[key]=Math.max(12,Math.min(80,g[key]));if(key==='barrelMult')g[key]=Math.max(1,Math.min(8,g[key]));if(key==='detonation')g[key]=Math.max(grapeDetonationMin(g),Math.min(1,g[key]));if(key==='pellets')g[key]=Math.max(1,Math.min(60,Math.round(g[key])));if(key==='spreadSpeed')g[key]=Math.max(40,Math.min(1400,g[key]));if(key==='absorb')g[key]=Math.max(0,Math.min(.75,g[key]));}
 
 
 function statusIconScale(o,type){
