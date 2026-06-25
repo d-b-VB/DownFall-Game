@@ -58,7 +58,7 @@ const zones = [
 ];
 
 const state = { mode:'menu',glyphWeapon:'club',t:0,last:0,keys:new Set(),mouse:{x:0,y:0,vx:0,vy:0,lastT:0,down:false,held:0},camera:{x:MAP_CENTER.x,y:MAP_CENTER.y},player:null,projectiles:[],pickups:[],enemies:[],terrain:[],waves:{},mount:'foot',debug:[],diamonds:0,ammo:{arrows:0,bolts:0,jars:0,pellets:0,cannonballs:0},elements:{fire:0,ice:0,poison:0},activeElement:null,meta:{},pendingReward:null,deferredRewards:[],shopOpen:false,offerNpc:null,currentZone:null,run:1,hazards:[],deployables:[],feedback:[],hudFlash:{hp:0,diamonds:0,lastHp:null,lastDiamonds:null},fungusRespawns:{},nextEnemyId:1,finance:{savings:0,debt:0,trust:0,trustAvailable:0,amounts:{savings:5,loan:10,trust:5}},casinoWagers:{coin:1,dice:1,card:1},shopPurchases:{},damageView:false,damagePreview:null,grapeshotTest:null,cheatOpen:false,cheatUiDirty:false,consumableAmounts:{}};
-const BUILD_VERSION = 'v0.28.7 build 2026-06-25 02:05 UTC';
+const BUILD_VERSION = 'v0.28.8 build 2026-06-25 02:31 UTC';
 const wrap12=h=>(h%12+12)%12; const inArc=(h,[s,e])=>{h=wrap12(h);s=wrap12(s);e=wrap12(e);if(s===e)return true;return s<=e?(h>=s&&h<e):(h>=s||h<e)}; const toClockHour=t=>wrap12((t*6/Math.PI)+3);
 const DEPLOYABLE_TOOLS={caltrop:{id:'caltrop',glyph:'✣',kind:'deployable',cooldown:.2},decoy:{id:'decoy',glyph:'🛡️',kind:'deployable',cooldown:.2}};
 const weaponDef=()=>weapons.find(w=>w.id===state.player.weapon)||DEPLOYABLE_TOOLS[state.player.weapon];
@@ -117,7 +117,7 @@ const NOTO_GAME_GLYPHS = [
   '🦊','🦉','🐧','🐻‍❄️','🫎','🍄','🦟','🦂','🐍','🪲','🐜','🦎',
   '🐐','🐉','🐌','🦞','🦄','🐦‍🔥','🦣','☁️','🛶','🧔‍♂️','🧔','🦇','☃️','🧌','🐊','👻','🧟','🧟‍♂️','🧟‍♀️','💀','🦴','🧛‍♂️','😈','👿','🔔','🗿','👹',
   '🌲','🌳','🌴','🌵','🌿','🌉','🌀','🌋','🏔️','🏠','🏦','🧱','🪨','🪵',
-  '🌰','🍆','🍑','🍎','🍖','🍲','🧀','🎲','🃏','🔨','⚙️','🧲'
+  '🌰','🍆','🍑','🍎','🍖','🍲','🧀','🎲','🃏','🔨','⚙️','🧲','⭐'
 ];
 const emojiPreload = NotoEmojiRenderer.preload([...new Set(NOTO_GAME_GLYPHS)]);
 
@@ -572,7 +572,7 @@ function collidesObstacle(x,y,{blockStumps=true}={}){for(const t of state.terrai
 function obstacleHitRadius(t){return Math.max(18,(t.size||18)*0.62);}
 function segmentObstacleHit(x1,y1,x2,y2,pr,{blockStumps=false}={}){let best=null,bestT=Infinity;for(const t of state.terrain){if(!t.solid)continue;if(t.stump&&!blockStumps)continue;const radius=obstacleHitRadius(t)+Math.max(3,(pr.size||8)*0.28),dx=x2-x1,dy=y2-y1,len2=dx*dx+dy*dy||1,u=Math.max(0,Math.min(1,((t.x-x1)*dx+(t.y-y1)*dy)/len2)),cx=x1+dx*u,cy=y1+dy*u,d=Math.hypot(t.x-cx,t.y-cy);if(d<radius&&u<bestT){bestT=u;best={target:t,x:cx,y:cy,t:u};}}return best;}
 function projectileHitsTarget(pr,target,extra=0){const ax=pr.prevX??pr.x,ay=pr.prevY??pr.y,bx=pr.x,by=pr.y,r=targetHitRadius(target)+Math.max(4,(pr.size||8)*0.32)+extra;return distToSegment(target.x,target.y,ax,ay,bx,by)<r;}
-function projectileStructureImpact(pr,t){const before=t.hp,scale=Math.max(0.35,projectileImpactScale(pr));applyHit(t,{knock:pr.knock||0,pierce:pr.pierce||0},scale);const dmg=before-t.hp;if(dmg>0)spawnSuitFeedback(t.x,t.y-10,'✦',dmg.toFixed(1),'#ddd');return dmg;}
+function projectileStructureImpact(pr,t){if(pr.noDamage)return 0;const before=t.hp,scale=Math.max(0.35,projectileImpactScale(pr));applyHit(t,{knock:pr.knock||0,pierce:pr.pierce||0},scale);const dmg=before-t.hp;if(dmg>0)spawnSuitFeedback(t.x,t.y-10,'✦',dmg.toFixed(1),'#ddd');return dmg;}
 function finishProjectileOnObstacle(pr,hit){const t=hit.target;pr.x=hit.x;pr.y=hit.y;projectileStructureImpact(pr,t);pr.hit=true;dbg(`[IMPACT] ${pr.source||'proj'} -> ${t.type}${t.stump?'(stump)':''} hp=${t.hp.toFixed(2)} speed=${(pr.speed||0).toFixed(0)}`);if(pr.spore){const treeZone=getZone(t.x,t.y),plantZone=treeZone?.id==='sawmill'?'sawmill':pr.sporeZone;plantMushroom(t.x,t.y,plantZone,true);pr.planted=true;pr.life=0;return;}if(pr.shards){spawnShards(pr);pr.shards=false;}const cannon=pr.source==='cannon'||pr.source==='grapeshot';if(cannon&&t.type==='tree'&&t.stump){pr.pierces=Math.max(0,(pr.pierces||0)-0.35);pr.x+=pr.vx*0.006;pr.y+=pr.vy*0.006;return;}if(cannon&&(pr.pierces||0)>0){pr.pierces=Math.max(0,pr.pierces-2);deflectProjectile(pr,t.x,t.y,0.62,0.55);dbg(`[CANNON] ricochet ang=${pr.angle.toFixed(2)} spd=${pr.speed.toFixed(1)} pierces=${pr.pierces}`);return;}dropRecoverable(pr);pr.life=0;}
 function collidesTree(x,y){return collidesObstacle(x,y);}
 function repelFromObstacle(actor,radius=18){
@@ -909,6 +909,7 @@ function knockEnemy(e,angle,impulse){
   e.knockbackT=Math.max(e.knockbackT||0,Math.min(0.42,0.1+impulse/620));
 }
 function projectileDamagePotential(pr){
+  if(pr.noDamage)return 0;
   const speedScale=projectileImpactScale(pr);
   return Math.max(.02,(pr.damage||.05)*speedScale*(pr.damageMult||1));
 }
@@ -1090,6 +1091,32 @@ function grapeshotLaunchSpeed(){
   const cannon=effectiveWeapon(weapons.find(w=>w.id==='cannon'));
   return projectileLaunchSpeed(cannon,1)*0.95;
 }
+
+function simulateGrapeshotExits(count, spreadSpeed, diameter=34, barrelMult=3, absorb=0.10){
+  const r=diameter/2,len=diameter*barrelMult,startX=-r,exits=[];
+  for(let i=0;i<count;i++){
+    const base=(i/count)*Math.PI*2+(Math.random()-0.5)*0.22;let x=startX,y=0,vx=Math.cos(base)*spreadSpeed,vy=Math.sin(base)*spreadSpeed;
+    for(let step=0;step<900&&x<=len;step++){
+      const dt=0.004;x+=vx*dt;y+=vy*dt;const localX=x,localY=y;
+      if(localX<0){const d=Math.hypot(localX,localY)||1;if(d>r){const nx=localX/d,ny=localY/d,dot=vx*nx+vy*ny;vx-=dot*(2-absorb)*nx;vy-=dot*(2-absorb)*ny;x=nx*r;y=ny*r;}}
+      else {if(localY<-r){y=-r;vy=Math.abs(vy)*(1-absorb);} if(localY>r){y=r;vy=-Math.abs(vy)*(1-absorb);}}
+    }
+    const speed=Math.hypot(vx,vy)||1;exits.push({y,vx:vx/speed,vy:vy/speed,speedRatio:speed/spreadSpeed});
+  }
+  return exits;
+}
+function spawnCannonGrapeshot(p,aim,baseSpeed,pelletDamage,pelletKnock){
+  const exits=simulateGrapeshotExits(10,340,34,3,0.10),sideX=-Math.sin(aim),sideY=Math.cos(aim),muzzleX=p.x+Math.cos(aim)*30,muzzleY=p.y+Math.sin(aim)*30;
+  const groups=[
+    {glyph:'●',size:10,damage:pelletDamage,knock:pelletKnock,pierce:4.2,drag:.72,life:.82,speed:1,color:'#111',source:'grapeshot pellet'},
+    {glyph:'☁️',size:18,damage:0,knock:18,pierce:0,drag:2.45,life:.95,speed:.68,color:'#fff',source:'grapeshot cloud',noDamage:true},
+    {glyph:'⭐',size:16,damage:0,knock:13,pierce:0,drag:.22,life:1.35,speed:.82,color:'#ffe55a',source:'grapeshot star',noDamage:true}
+  ];
+  for(const group of groups)for(const exit of exits){
+    const ux=Math.cos(aim)*exit.vx+sideX*exit.vy,uy=Math.sin(aim)*exit.vx+sideY*exit.vy,sv=baseSpeed*group.speed*Math.max(.72,Math.min(1.15,exit.speedRatio));
+    state.projectiles.push({x:muzzleX+sideX*exit.y,y:muzzleY+sideY*exit.y,vx:ux*sv+p.vx,vy:uy*sv+p.vy,life:group.life,glyph:group.glyph,size:group.size,damage:group.damage,knock:group.knock,pierce:group.pierce,damageMult:1,angle:Math.atan2(uy,ux),speed:Math.hypot(ux*sv+p.vx,uy*sv+p.vy),source:group.source,color:group.color,referenceSpeed:sv,drag:group.drag,noDamage:group.noDamage,maxHp:group.noDamage?0.45:undefined});
+  }
+}
 function fireCharge(){
   const w=effectiveWeapon(weaponDef()),p=state.player;if((p.attackCooldown||0)>0){dbg(`[COOLDOWN] ${w.id} ${(p.attackCooldown||0).toFixed(2)}s`);return;}
   const h=chargeLevel(state.mouse.held,w.id);let a=Math.atan2(state.mouse.y-innerHeight/2,state.mouse.x-innerWidth/2),sp=projectileLaunchSpeed(w,h);
@@ -1105,10 +1132,10 @@ function fireCharge(){
   if(w.id==='cannon'){
     if((p.cannonCooldown||0)>0){dbg(`[CANNON] cooling ${(p.cannonCooldown||0).toFixed(1)}s`);return;}if(h<CANNON_FIRE_CHARGE){dbg('[CANNON] needs warm-up');return;}
     if(state.cannonMode==='grape'&&p.unlocked.has('grapeshot')){
-      if(state.ammo.pellets<6){dbg('[AMMO] grapeshot needs 6 metal pellets');return;}state.ammo.pellets-=6;p.cannonCooldown=1.35;p.attackCooldown=1.35;p.attackCooldownTotal=1.35;p.vx-=Math.cos(a)*70;p.vy-=Math.sin(a)*70;
+      if(state.ammo.pellets<10){dbg('[AMMO] grapeshot needs 10 metal pellets');return;}state.ammo.pellets-=10;p.cannonCooldown=1.35;p.attackCooldown=1.35;p.attackCooldownTotal=1.35;p.vx-=Math.cos(a)*70;p.vy-=Math.sin(a)*70;
       const pellet=metaFor('pellet'),pelletDamage=6.5*(1+(pellet.damage||0)*.1),pelletKnock=6*(1+(pellet.knockback||0)*.1);
-      for(let i=-3;i<=3;i++){const aa=a+i*0.11,sv=grapeshotLaunchSpeed();state.projectiles.push({x:p.x+Math.cos(a)*30,y:p.y+Math.sin(a)*30,vx:Math.cos(aa)*sv+p.vx,vy:Math.sin(aa)*sv+p.vy,life:0.75,glyph:'●',size:10,damage:pelletDamage,knock:pelletKnock,pierce:4.2,damageMult:1,angle:aa,speed:Math.hypot(Math.cos(aa)*sv+p.vx,Math.sin(aa)*sv+p.vy),source:'grapeshot',color:'#111',referenceSpeed:sv,drag:.72});}
-      for(const e of state.enemies){const da=Math.atan2(Math.sin(Math.atan2(e.y-p.y,e.x-p.x)-a),Math.cos(Math.atan2(e.y-p.y,e.x-p.x)-a)),dist=Math.hypot(e.x-p.x,e.y-p.y);if(Math.abs(da)<0.55&&dist<150){e.vx+=Math.cos(a)*180;e.vy+=Math.sin(a)*180;}}dbg('[CANNON] grapeshot blast');return;
+      spawnCannonGrapeshot(p,a,grapeshotLaunchSpeed(),pelletDamage,pelletKnock);
+      for(const e of state.enemies){const da=Math.atan2(Math.sin(Math.atan2(e.y-p.y,e.x-p.x)-a),Math.cos(Math.atan2(e.y-p.y,e.x-p.x)-a)),dist=Math.hypot(e.x-p.x,e.y-p.y);if(Math.abs(da)<0.55&&dist<150){e.vx+=Math.cos(a)*180;e.vy+=Math.sin(a)*180;}}dbg('[CANNON] grapeshot blast: 10 pellets, 10 clouds, 10 stars');return;
     }
     if(state.ammo.cannonballs<=0){dbg('[AMMO] buy cannonballs at the Foundry');return;}state.ammo.cannonballs--;glyph='●';size=38;damage=42;knock=75;pierce=24;sp=3900*w.speedMult;p.cannonCooldown=2;p.vx-=Math.cos(a)*95;p.vy-=Math.sin(a)*95;damageMult=6;life=4;pierces=9;
   }
