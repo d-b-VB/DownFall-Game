@@ -58,7 +58,7 @@ const zones = [
 ];
 
 const state = { mode:'menu',glyphWeapon:'club',t:0,last:0,keys:new Set(),mouse:{x:0,y:0,vx:0,vy:0,lastT:0,down:false,held:0},camera:{x:MAP_CENTER.x,y:MAP_CENTER.y},player:null,projectiles:[],pickups:[],enemies:[],terrain:[],waves:{},mount:'foot',debug:[],diamonds:0,ammo:{arrows:0,bolts:0,jars:0,pellets:0,cannonballs:0},elements:{fire:0,ice:0,poison:0},activeElement:null,meta:{},pendingReward:null,deferredRewards:[],shopOpen:false,offerNpc:null,currentZone:null,run:1,hazards:[],deployables:[],feedback:[],hudFlash:{hp:0,diamonds:0,lastHp:null,lastDiamonds:null},fungusRespawns:{},nextEnemyId:1,finance:{savings:0,debt:0,trust:0,trustAvailable:0,amounts:{savings:5,loan:10,trust:5}},casinoWagers:{coin:1,dice:1,card:1},shopPurchases:{},damageView:false,damagePreview:null,cheatOpen:false,cheatUiDirty:false,consumableAmounts:{}};
-const BUILD_VERSION = 'v0.28.3 build 2026-06-24 01:23 UTC';
+const BUILD_VERSION = 'v0.28.4 build 2026-06-25 00:22 UTC';
 const wrap12=h=>(h%12+12)%12; const inArc=(h,[s,e])=>{h=wrap12(h);s=wrap12(s);e=wrap12(e);if(s===e)return true;return s<=e?(h>=s&&h<e):(h>=s||h<e)}; const toClockHour=t=>wrap12((t*6/Math.PI)+3);
 const DEPLOYABLE_TOOLS={caltrop:{id:'caltrop',glyph:'✣',kind:'deployable',cooldown:.2},decoy:{id:'decoy',glyph:'🛡️',kind:'deployable',cooldown:.2}};
 const weaponDef=()=>weapons.find(w=>w.id===state.player.weapon)||DEPLOYABLE_TOOLS[state.player.weapon];
@@ -1074,13 +1074,14 @@ function projectileLaunchSpeed(w,h){
   const footTop=(12*RADIUS_UNIT)/60,horseTop=footTop*2.25,rangedSpeedBoost=1.5;
   if(w.id==='sling')return (footTop+360)*chargeSpeedRatio(w.id,h)*w.speedMult*rangedSpeedBoost;
   if(w.id==='bow')return (horseTop+268)*chargeSpeedRatio(w.id,h)*w.speedMult*rangedSpeedBoost;
-  if(w.id==='ballista')return (horseTop+260)*chargeSpeedRatio(w.id,h)*w.speedMult*rangedSpeedBoost;
+  if(w.id==='ballista')return (horseTop+968)*chargeSpeedRatio(w.id,h)*w.speedMult*rangedSpeedBoost;
+  if(w.id==='cannon')return (240+2360)*chargeSpeedRatio(w.id,h)*w.speedMult*rangedSpeedBoost;
   return (240+460)*chargeSpeedRatio(w.id,h)*w.speedMult*rangedSpeedBoost;
 }
 function projectileDragFor(id,mode){if(id==='bow')return .38;if(id==='ballista')return .3;if(id==='cannon')return .24;if(id==='sling'&&mode==='pellet')return .72;if(id==='sling'&&['jar','elementJar'].includes(mode))return 1.05;if(id==='sling')return 1.25;return 1;}
-function maxMountedSlingSpeed(){
-  const sling=effectiveWeapon(weapons.find(w=>w.id==='sling')),horseTop=(12*RADIUS_UNIT/60)*2.25;
-  return projectileLaunchSpeed(sling,1)+horseTop;
+function grapeshotLaunchSpeed(){
+  const cannon=effectiveWeapon(weapons.find(w=>w.id==='cannon'));
+  return projectileLaunchSpeed(cannon,1)*0.95;
 }
 function fireCharge(){
   const w=effectiveWeapon(weaponDef()),p=state.player;if((p.attackCooldown||0)>0){dbg(`[COOLDOWN] ${w.id} ${(p.attackCooldown||0).toFixed(2)}s`);return;}
@@ -1099,10 +1100,10 @@ function fireCharge(){
     if(state.cannonMode==='grape'&&p.unlocked.has('grapeshot')){
       if(state.ammo.pellets<6){dbg('[AMMO] grapeshot needs 6 metal pellets');return;}state.ammo.pellets-=6;p.cannonCooldown=1.35;p.attackCooldown=1.35;p.attackCooldownTotal=1.35;p.vx-=Math.cos(a)*70;p.vy-=Math.sin(a)*70;
       const pellet=metaFor('pellet'),pelletDamage=6.5*(1+(pellet.damage||0)*.1),pelletKnock=6*(1+(pellet.knockback||0)*.1);
-      for(let i=-3;i<=3;i++){const aa=a+i*0.11,sv=maxMountedSlingSpeed();state.projectiles.push({x:p.x+Math.cos(a)*30,y:p.y+Math.sin(a)*30,vx:Math.cos(aa)*sv+p.vx,vy:Math.sin(aa)*sv+p.vy,life:0.75,glyph:'●',size:10,damage:pelletDamage,knock:pelletKnock,pierce:4.2,damageMult:1,angle:aa,speed:Math.hypot(Math.cos(aa)*sv+p.vx,Math.sin(aa)*sv+p.vy),source:'grapeshot',color:'#111',referenceSpeed:sv,drag:.72});}
+      for(let i=-3;i<=3;i++){const aa=a+i*0.11,sv=grapeshotLaunchSpeed();state.projectiles.push({x:p.x+Math.cos(a)*30,y:p.y+Math.sin(a)*30,vx:Math.cos(aa)*sv+p.vx,vy:Math.sin(aa)*sv+p.vy,life:0.75,glyph:'●',size:10,damage:pelletDamage,knock:pelletKnock,pierce:4.2,damageMult:1,angle:aa,speed:Math.hypot(Math.cos(aa)*sv+p.vx,Math.sin(aa)*sv+p.vy),source:'grapeshot',color:'#111',referenceSpeed:sv,drag:.72});}
       for(const e of state.enemies){const da=Math.atan2(Math.sin(Math.atan2(e.y-p.y,e.x-p.x)-a),Math.cos(Math.atan2(e.y-p.y,e.x-p.x)-a)),dist=Math.hypot(e.x-p.x,e.y-p.y);if(Math.abs(da)<0.55&&dist<150){e.vx+=Math.cos(a)*180;e.vy+=Math.sin(a)*180;}}dbg('[CANNON] grapeshot blast');return;
     }
-    if(state.ammo.cannonballs<=0){dbg('[AMMO] buy cannonballs at the Foundry');return;}state.ammo.cannonballs--;glyph='●';size=38;damage=42;knock=75;pierce=24;sp=780*w.speedMult;p.cannonCooldown=2;p.vx-=Math.cos(a)*95;p.vy-=Math.sin(a)*95;damageMult=6;life=4;pierces=9;
+    if(state.ammo.cannonballs<=0){dbg('[AMMO] buy cannonballs at the Foundry');return;}state.ammo.cannonballs--;glyph='●';size=38;damage=42;knock=75;pierce=24;sp=3900*w.speedMult;p.cannonCooldown=2;p.vx-=Math.cos(a)*95;p.vy-=Math.sin(a)*95;damageMult=6;life=4;pierces=9;
   }
   if(w.id==='sling'){
     if(state.slingMode==='pellet'){if(state.ammo.pellets<=0){dbg('[AMMO] buy metal pellets in Smith Town');return;}state.ammo.pellets--;glyph='●';size=10;const pellet=metaFor('pellet');damage=15*(1+(pellet.damage||0)*.1);knock=8.5*(1+(pellet.knockback||0)*.1);pierce=3.8;color='#111';recoverable='pellets';}
